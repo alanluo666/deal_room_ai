@@ -1,0 +1,6 @@
+fastapi
+uvicorn
+pydantic
+mlflow
+python-dotenv
+openai
