@@ -1,0 +1,7 @@
+# Temporary in-class Vertex AI demo scaffold — pip dependencies only.
+# Repo root `../requirements.txt` is for the main Deal Room AI API (OpenAI, MLflow, etc.).
+google-cloud-aiplatform
+kfp
+google-cloud-pipeline-components
+fastapi
+uvicorn

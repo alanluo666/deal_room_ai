@@ -1,0 +1,5 @@
+# Local artifacts for the in-class Vertex AI demo (not the main Deal Room AI app).
+.venv/
+__pycache__/
+*.pyc
+demo_pipeline.yaml
