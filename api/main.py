@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.config import settings
 from api.db import get_db
 from api.deps import vector_store_dep
+from api.routers import analyze as analyze_router
 from api.routers import auth as auth_router
 from api.routers import deal_rooms as deal_rooms_router
 from api.routers import documents as documents_router
@@ -31,6 +32,7 @@ app.include_router(auth_router.router)
 app.include_router(deal_rooms_router.router)
 app.include_router(documents_router.router)
 app.include_router(questions_router.router)
+app.include_router(analyze_router.router)
 
 
 @app.on_event("startup")

@@ -106,6 +106,7 @@ async def ask_question(
         answer=result.answer,
         citations=result.citations,
         model=result.model,
+        chunks_used=result.chunks_used,
     )
 
 

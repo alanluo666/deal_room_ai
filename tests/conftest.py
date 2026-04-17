@@ -142,9 +142,11 @@ class StubLLM:
         self.model = model
         self._raises = raises
         self.calls: list[str] = []
+        self.instruction_calls: list[str | None] = []
 
-    def run_rag(self, *, prompt: str) -> str:
+    def run_rag(self, *, prompt: str, instructions: str | None = None) -> str:
         self.calls.append(prompt)
+        self.instruction_calls.append(instructions)
         if self._raises is not None:
             raise self._raises
         return self.answer

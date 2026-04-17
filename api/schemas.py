@@ -2,6 +2,8 @@ from datetime import datetime
 
 from pydantic import BaseModel, ConfigDict, EmailStr, Field
 
+from api.tasks import Task
+
 
 class PredictionRequest(BaseModel):
     task: str = Field(
@@ -89,6 +91,7 @@ class AskResponse(BaseModel):
     answer: str
     citations: list[Citation]
     model: str
+    chunks_used: int
 
 
 class QuestionRead(BaseModel):
@@ -101,3 +104,16 @@ class QuestionRead(BaseModel):
     answer: str
     citations: list[Citation]
     created_at: datetime
+
+
+class AnalyzeRequest(BaseModel):
+    task: Task
+    top_k: int = Field(default=8, ge=1, le=10)
+
+
+class AnalyzeResponse(BaseModel):
+    task: str
+    answer: str
+    citations: list[Citation]
+    model: str
+    chunks_used: int
