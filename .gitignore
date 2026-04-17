@@ -7,6 +7,8 @@ api/__pycache__/
 tests/__pycache__/
 alembic/versions/__pycache__/
 postgres_data/
+chroma_data/
+storage/
 frontend/node_modules/
 frontend/.next/
 frontend/.env.local

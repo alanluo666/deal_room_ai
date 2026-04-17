@@ -15,15 +15,35 @@ services:
       timeout: 5s
       retries: 10
 
+  chromadb:
+    image: chromadb/chroma:0.5.20
+    volumes:
+      - chroma_data:/chroma/chroma
+    ports:
+      - "8001:8000"
+    environment:
+      IS_PERSISTENT: "TRUE"
+      ANONYMIZED_TELEMETRY: "FALSE"
+    healthcheck:
+      test: ["CMD", "/bin/sh", "-c", "cat < /dev/null > /dev/tcp/127.0.0.1/8000"]
+      interval: 5s
+      timeout: 5s
+      retries: 15
+
   api:
     build: .
     depends_on:
       postgres:
         condition: service_healthy
+      chromadb:
+        condition: service_healthy
     env_file:
       - .env
     environment:
       DATABASE_URL: postgresql+asyncpg://postgres:postgres@postgres:5432/deal_room_ai
+      CHROMA_HOST: chromadb
+      CHROMA_PORT: "8000"
+      STORAGE_DIR: /app/storage
     ports:
       - "8000:8000"
     command: >
@@ -31,6 +51,8 @@ services:
              uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload"
     volumes:
       - .:/app
+      - ./storage:/app/storage
 
 volumes:
   postgres_data:
+  chroma_data:
