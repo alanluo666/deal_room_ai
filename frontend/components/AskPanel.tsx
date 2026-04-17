@@ -4,7 +4,7 @@ import { useState } from "react";
 
 import type { AskResponse } from "@/lib/types";
 
-import { CitationList } from "./CitationList";
+import { AnswerCard } from "./AnswerCard";
 import { Button, Card, FieldError } from "./ui";
 
 interface Props {
@@ -73,13 +73,12 @@ export function AskPanel({ onAsk, isAsking, latestAnswer, hasDocuments }: Props)
       </form>
 
       {latestAnswer ? (
-        <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-800 dark:bg-slate-950">
-          <p className="whitespace-pre-wrap text-slate-800 dark:text-slate-100">
-            {latestAnswer.answer}
-          </p>
-          <CitationList citations={latestAnswer.citations} />
-          <p className="mt-2 text-xs text-slate-400">model: {latestAnswer.model}</p>
-        </div>
+        <AnswerCard
+          answer={latestAnswer.answer}
+          citations={latestAnswer.citations}
+          model={latestAnswer.model}
+          chunksUsed={latestAnswer.chunks_used}
+        />
       ) : null}
     </Card>
   );

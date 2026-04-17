@@ -57,6 +57,22 @@ export interface AskResponse {
   answer: string;
   citations: Citation[];
   model: string;
+  chunks_used: number;
+}
+
+export type AnalyzeTask = "summary" | "risks";
+
+export interface AnalyzeRequestInput {
+  task: AnalyzeTask;
+  top_k?: number;
+}
+
+export interface AnalyzeResponse {
+  task: AnalyzeTask;
+  answer: string;
+  citations: Citation[];
+  model: string;
+  chunks_used: number;
 }
 
 export interface QuestionRead {

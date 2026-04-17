@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use, useState } from "react";
 
+import { AnalyzePanel } from "@/components/AnalyzePanel";
 import { AskPanel } from "@/components/AskPanel";
 import { DocumentList } from "@/components/DocumentList";
 import { DocumentUploader } from "@/components/DocumentUploader";
@@ -13,6 +14,8 @@ import { Button, Card } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { useLogout, useUser } from "@/lib/auth";
 import type {
+  AnalyzeResponse,
+  AnalyzeTask,
   AskResponse,
   DealRoom,
   DealRoomDocument,
@@ -80,6 +83,10 @@ export default function DealRoomDetailPage({
   });
 
   const [latestAnswer, setLatestAnswer] = useState<AskResponse | null>(null);
+  const [latestSummary, setLatestSummary] = useState<AnalyzeResponse | null>(
+    null,
+  );
+  const [latestRisks, setLatestRisks] = useState<AnalyzeResponse | null>(null);
 
   const askMutation = useMutation<AskResponse, Error, string>({
     mutationFn: (question) =>
@@ -94,6 +101,23 @@ export default function DealRoomDetailPage({
       });
     },
   });
+
+  const analyzeMutation = useMutation<AnalyzeResponse, Error, AnalyzeTask>({
+    mutationFn: (task) =>
+      apiFetch<AnalyzeResponse>(`/deal-rooms/${dealRoomId}/analyze`, {
+        method: "POST",
+        body: JSON.stringify({ task }),
+      }),
+    onSuccess: (data, task) => {
+      if (task === "summary") setLatestSummary(data);
+      else if (task === "risks") setLatestRisks(data);
+    },
+  });
+
+  const pendingAnalyzeTask: AnalyzeTask | null =
+    analyzeMutation.isPending && analyzeMutation.variables
+      ? analyzeMutation.variables
+      : null;
 
   const onLogout = async () => {
     await logout.mutateAsync();
@@ -185,6 +209,17 @@ export default function DealRoomDetailPage({
               }
             />
           ) : null}
+
+          <AnalyzePanel
+            hasDocuments={(documentsQuery.data?.length ?? 0) > 0}
+            pendingTask={pendingAnalyzeTask}
+            latestSummary={latestSummary}
+            latestRisks={latestRisks}
+            errorMessage={
+              analyzeMutation.isError ? analyzeMutation.error.message : null
+            }
+            onAnalyze={async (task) => analyzeMutation.mutateAsync(task)}
+          />
 
           <AskPanel
             isAsking={askMutation.isPending}
