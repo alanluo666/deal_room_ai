@@ -1,15 +1,17 @@
 "use client";
 
+// Results (summary + risks cards) render in FindingsPanel. This component is
+// now action-only: kicks off POST /deal-rooms/{id}/analyze and surfaces the
+// in-flight / error state. The route, request shape, and AnalyzeResponse
+// schema it triggers are unchanged.
+
 import type { AnalyzeResponse, AnalyzeTask } from "@/lib/types";
 
-import { AnswerCard } from "./AnswerCard";
 import { Button, Card, FieldError } from "./ui";
 
 interface Props {
   onAnalyze: (task: AnalyzeTask) => Promise<AnalyzeResponse>;
   pendingTask: AnalyzeTask | null;
-  latestSummary: AnalyzeResponse | null;
-  latestRisks: AnalyzeResponse | null;
   hasDocuments: boolean;
   errorMessage: string | null;
 }
@@ -17,8 +19,6 @@ interface Props {
 export function AnalyzePanel({
   onAnalyze,
   pendingTask,
-  latestSummary,
-  latestRisks,
   hasDocuments,
   errorMessage,
 }: Props) {
@@ -39,7 +39,7 @@ export function AnalyzePanel({
         <h3 className="text-sm font-semibold">Analyze this deal room</h3>
         <p className="text-xs text-slate-500 dark:text-slate-400">
           Generate a grounded summary or risk list from the uploaded documents.
-          Results are not saved; re-run anytime.
+          Results appear in the Findings panel below; re-run anytime.
         </p>
       </div>
 
@@ -69,26 +69,6 @@ export function AnalyzePanel({
       ) : null}
 
       <FieldError>{errorMessage}</FieldError>
-
-      {latestSummary ? (
-        <AnswerCard
-          title="Summary"
-          answer={latestSummary.answer}
-          citations={latestSummary.citations}
-          model={latestSummary.model}
-          chunksUsed={latestSummary.chunks_used}
-        />
-      ) : null}
-
-      {latestRisks ? (
-        <AnswerCard
-          title="Risks"
-          answer={latestRisks.answer}
-          citations={latestRisks.citations}
-          model={latestRisks.model}
-          chunksUsed={latestRisks.chunks_used}
-        />
-      ) : null}
     </Card>
   );
 }
