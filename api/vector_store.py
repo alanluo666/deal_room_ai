@@ -150,9 +150,3 @@ def get_vector_store() -> VectorStore:
             collection_name=settings.CHROMA_COLLECTION,
         )
     return _instance
-
-
-def reset_vector_store() -> None:
-    """Clear the cached singleton. Used only by tests."""
-    global _instance
-    _instance = None

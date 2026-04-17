@@ -1,10 +1,11 @@
-from fastapi import APIRouter, Depends, HTTPException, Response, status
+from fastapi import APIRouter, Depends, Response, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import get_db
 from api.deps import get_current_user, vector_store_dep
 from api.models import DealRoom, Document, User
+from api.routers._helpers import load_owned_deal_room
 from api.routers.documents import _cleanup_document_side_effects
 from api.schemas import DealRoomCreate, DealRoomRead
 from api.vector_store import VectorStore
@@ -48,16 +49,7 @@ async def get_deal_room(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> DealRoom:
-    result = await db.execute(
-        select(DealRoom).where(
-            DealRoom.id == deal_room_id,
-            DealRoom.owner_id == current_user.id,
-        )
-    )
-    deal_room = result.scalar_one_or_none()
-    if deal_room is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deal room not found")
-    return deal_room
+    return await load_owned_deal_room(db, deal_room_id, current_user)
 
 
 @router.delete("/{deal_room_id}", status_code=status.HTTP_204_NO_CONTENT)
@@ -67,15 +59,7 @@ async def delete_deal_room(
     current_user: User = Depends(get_current_user),
     vector_store: VectorStore = Depends(vector_store_dep),
 ) -> Response:
-    result = await db.execute(
-        select(DealRoom).where(
-            DealRoom.id == deal_room_id,
-            DealRoom.owner_id == current_user.id,
-        )
-    )
-    deal_room = result.scalar_one_or_none()
-    if deal_room is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deal room not found")
+    deal_room = await load_owned_deal_room(db, deal_room_id, current_user)
 
     documents_result = await db.execute(
         select(Document).where(Document.deal_room_id == deal_room.id)

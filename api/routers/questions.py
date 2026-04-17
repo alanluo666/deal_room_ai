@@ -6,40 +6,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import get_db
 from api.deps import get_current_user, rag_service_dep
-from api.models import DealRoom, Document, Question, User
+from api.models import Question, User
 from api.rag import RagService
+from api.routers._helpers import filenames_by_document_id, load_owned_deal_room
 from api.schemas import AskRequest, AskResponse, Citation, QuestionRead
 from api.tracking import elapsed_seconds, timed_call, tracking_manager
 
 router = APIRouter(prefix="/deal-rooms/{deal_room_id}", tags=["questions"])
-
-
-async def _load_owned_deal_room(
-    db: AsyncSession, deal_room_id: int, user: User
-) -> DealRoom:
-    result = await db.execute(
-        select(DealRoom).where(
-            DealRoom.id == deal_room_id,
-            DealRoom.owner_id == user.id,
-        )
-    )
-    deal_room = result.scalar_one_or_none()
-    if deal_room is None:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND, detail="Deal room not found"
-        )
-    return deal_room
-
-
-async def _filenames_by_document_id(
-    db: AsyncSession, deal_room_id: int
-) -> dict[int, str]:
-    result = await db.execute(
-        select(Document.id, Document.filename).where(
-            Document.deal_room_id == deal_room_id
-        )
-    )
-    return {row.id: row.filename for row in result.all()}
 
 
 @router.post("/ask", response_model=AskResponse)
@@ -50,8 +23,8 @@ async def ask_question(
     current_user: User = Depends(get_current_user),
     rag: RagService = Depends(rag_service_dep),
 ) -> AskResponse:
-    await _load_owned_deal_room(db, deal_room_id, current_user)
-    filenames = await _filenames_by_document_id(db, deal_room_id)
+    await load_owned_deal_room(db, deal_room_id, current_user)
+    filenames = await filenames_by_document_id(db, deal_room_id)
 
     started = timed_call()
     try:
@@ -116,7 +89,7 @@ async def list_questions(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[QuestionRead]:
-    await _load_owned_deal_room(db, deal_room_id, current_user)
+    await load_owned_deal_room(db, deal_room_id, current_user)
     result = await db.execute(
         select(Question)
         .where(Question.deal_room_id == deal_room_id)

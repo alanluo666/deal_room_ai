@@ -11,7 +11,7 @@ M1 of the product slice ships multi-user accounts (JWT in an HTTP-only cookie), 
 - Python 3.12+ (only needed if you run the API outside Docker)
 - Node.js 20+ and npm (for the frontend)
 - Docker and Docker Compose (recommended for local development)
-- OpenAI API key (required only for the legacy `POST /predict` endpoint)
+- OpenAI API key (required for `POST /predict`, `POST /ask`, and `POST /analyze`; also used for document embeddings on upload)
 
 ## Local Development Quickstart
 
@@ -142,7 +142,7 @@ Each deal room supports grounded question answering over its own documents. The 
 
 | Method | Path                                             | Description                                                                |
 |--------|--------------------------------------------------|----------------------------------------------------------------------------|
-| POST   | `/deal-rooms/{deal_room_id}/ask`                 | Body: `{"question": str, "top_k"?: int (1..10, default 5)}`. Returns `{question_id, answer, citations, model}`. |
+| POST   | `/deal-rooms/{deal_room_id}/ask`                 | Body: `{"question": str, "top_k"?: int (1..10, default 5)}`. Returns `{question_id, answer, citations, model, chunks_used}`. |
 | GET    | `/deal-rooms/{deal_room_id}/questions`           | Append-only history for the room, newest first. Each entry has the question, answer, and stored citations. |
 
 Citations are returned in retrieval order (most relevant first) and each contains `document_id`, `filename`, `chunk_index`, and a `snippet` capped at 300 characters. The context passed to the LLM is capped at 8000 characters; chunks beyond that are truncated or dropped to keep prompts predictable.

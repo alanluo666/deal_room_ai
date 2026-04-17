@@ -22,12 +22,11 @@ from api.deps import embedding_client_dep, get_current_user, vector_store_dep
 from api.document_processing import (
     ALLOWED_MIME_TYPES,
     EmbeddingClient,
-    ExtractionError,
-    UnsupportedFileTypeError,
     build_chunks,
     is_supported,
 )
-from api.models import DealRoom, Document, DocumentStatus, User
+from api.models import Document, DocumentStatus, User
+from api.routers._helpers import load_owned_deal_room
 from api.schemas import DocumentRead
 from api.vector_store import VectorStore
 
@@ -41,25 +40,10 @@ _EXTENSION_BY_MIME = {
 }
 
 
-async def _load_owned_deal_room(
-    db: AsyncSession, deal_room_id: int, user: User
-) -> DealRoom:
-    result = await db.execute(
-        select(DealRoom).where(
-            DealRoom.id == deal_room_id,
-            DealRoom.owner_id == user.id,
-        )
-    )
-    deal_room = result.scalar_one_or_none()
-    if deal_room is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Deal room not found")
-    return deal_room
-
-
 async def _load_owned_document(
     db: AsyncSession, deal_room_id: int, document_id: int, user: User
 ) -> Document:
-    await _load_owned_deal_room(db, deal_room_id, user)
+    await load_owned_deal_room(db, deal_room_id, user)
     result = await db.execute(
         select(Document).where(
             Document.id == document_id,
@@ -92,7 +76,7 @@ async def upload_document(
     vector_store: VectorStore = Depends(vector_store_dep),
     embedder: EmbeddingClient = Depends(embedding_client_dep),
 ) -> Document:
-    await _load_owned_deal_room(db, deal_room_id, current_user)
+    await load_owned_deal_room(db, deal_room_id, current_user)
 
     mime_type = (file.content_type or "").lower()
     if not is_supported(mime_type):
@@ -147,7 +131,10 @@ async def upload_document(
         document.status = DocumentStatus.READY.value
         document.chunk_count = len(chunks)
         document.error_message = None
-    except (UnsupportedFileTypeError, ExtractionError, Exception) as exc:
+    except Exception as exc:
+        # Any extraction, chunking, embedding, or vector-store failure is
+        # recorded on the document row so the upload request still returns
+        # 201 with an observable "failed" status instead of a 500.
         document.status = DocumentStatus.FAILED.value
         document.error_message = str(exc)[:500]
     await db.commit()
@@ -161,7 +148,7 @@ async def list_documents(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user),
 ) -> list[Document]:
-    await _load_owned_deal_room(db, deal_room_id, current_user)
+    await load_owned_deal_room(db, deal_room_id, current_user)
     result = await db.execute(
         select(Document)
         .where(Document.deal_room_id == deal_room_id)

@@ -121,12 +121,6 @@ def get_embedding_client() -> EmbeddingClient:
     return _embedding_singleton
 
 
-def reset_embedding_client() -> None:
-    """Clear the cached singleton. Used only by tests."""
-    global _embedding_singleton
-    _embedding_singleton = None
-
-
 def build_chunks(
     *,
     user_id: int,

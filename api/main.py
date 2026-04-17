@@ -37,6 +37,14 @@ app.include_router(analyze_router.router)
 
 @app.on_event("startup")
 def startup_event():
+    # Fail fast if the signing key is missing. Without this guard the app
+    # would silently sign session cookies with the empty string, which is
+    # trivially forgeable. Tests and docker-compose both set JWT_SECRET
+    # explicitly via env, so this only triggers on real misconfiguration.
+    if not settings.JWT_SECRET:
+        raise RuntimeError(
+            "JWT_SECRET is not set. Configure it in .env before starting the API."
+        )
     tracking_manager.configure()
 
 

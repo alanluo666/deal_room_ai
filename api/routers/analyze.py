@@ -14,9 +14,7 @@ from api.db import get_db
 from api.deps import get_current_user, rag_service_dep
 from api.models import User
 from api.rag import RagService
-# Intentional cross-router import: the owner check and filename lookup were
-# introduced in M3 and are reused here to avoid a parallel implementation.
-from api.routers.questions import _filenames_by_document_id, _load_owned_deal_room
+from api.routers._helpers import filenames_by_document_id, load_owned_deal_room
 from api.schemas import AnalyzeRequest, AnalyzeResponse
 
 router = APIRouter(prefix="/deal-rooms/{deal_room_id}", tags=["analyze"])
@@ -30,8 +28,8 @@ async def analyze_deal_room(
     current_user: User = Depends(get_current_user),
     rag: RagService = Depends(rag_service_dep),
 ) -> AnalyzeResponse:
-    await _load_owned_deal_room(db, deal_room_id, current_user)
-    filenames = await _filenames_by_document_id(db, deal_room_id)
+    await load_owned_deal_room(db, deal_room_id, current_user)
+    filenames = await filenames_by_document_id(db, deal_room_id)
 
     try:
         result = rag.run_task(
