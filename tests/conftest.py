@@ -20,9 +20,10 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import StaticPool
 
 from api.db import Base, get_db
-from api.deps import embedding_client_dep, vector_store_dep
+from api.deps import embedding_client_dep, rag_service_dep, vector_store_dep
 from api.main import app
 from api.models import DealRoom, Document, Question, User  # noqa: F401  -- register metadata
+from api.rag import RagService
 from api.vector_store import Chunk, RetrievedChunk, VectorStore
 
 
@@ -127,6 +128,28 @@ class FakeEmbeddingClient:
         return [[float(len(t)), float(i)] for i, t in enumerate(texts)]
 
 
+class StubLLM:
+    """Minimal LLM that satisfies :class:`api.rag.RagLLM`."""
+
+    def __init__(
+        self,
+        *,
+        answer: str = "Stubbed answer.",
+        model: str = "stub-llm",
+        raises: Exception | None = None,
+    ) -> None:
+        self.answer = answer
+        self.model = model
+        self._raises = raises
+        self.calls: list[str] = []
+
+    def run_rag(self, *, prompt: str) -> str:
+        self.calls.append(prompt)
+        if self._raises is not None:
+            raise self._raises
+        return self.answer
+
+
 @pytest.fixture
 def fake_vector_store() -> FakeVectorStore:
     return FakeVectorStore()
@@ -135,6 +158,11 @@ def fake_vector_store() -> FakeVectorStore:
 @pytest.fixture
 def fake_embedding_client() -> FakeEmbeddingClient:
     return FakeEmbeddingClient()
+
+
+@pytest.fixture
+def stub_llm() -> StubLLM:
+    return StubLLM()
 
 
 @pytest_asyncio.fixture
@@ -160,6 +188,26 @@ async def make_client(
 
     yield _factory
     app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def override_rag(
+    make_client,
+    fake_vector_store: FakeVectorStore,
+    fake_embedding_client: FakeEmbeddingClient,
+    stub_llm: StubLLM,
+):
+    """Swap ``rag_service_dep`` for a RagService that uses the stub LLM."""
+
+    def _factory() -> RagService:
+        return RagService(
+            vector_store=fake_vector_store,
+            embedder=fake_embedding_client,
+            llm=stub_llm,
+        )
+
+    app.dependency_overrides[rag_service_dep] = _factory
+    yield stub_llm
 
 
 @pytest_asyncio.fixture
