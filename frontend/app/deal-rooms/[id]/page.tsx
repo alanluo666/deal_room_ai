@@ -3,14 +3,21 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { use } from "react";
+import { use, useState } from "react";
 
+import { AskPanel } from "@/components/AskPanel";
 import { DocumentList } from "@/components/DocumentList";
 import { DocumentUploader } from "@/components/DocumentUploader";
+import { QuestionHistory } from "@/components/QuestionHistory";
 import { Button, Card } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
 import { useLogout, useUser } from "@/lib/auth";
-import type { DealRoom, DealRoomDocument } from "@/lib/types";
+import type {
+  AskResponse,
+  DealRoom,
+  DealRoomDocument,
+  QuestionRead,
+} from "@/lib/types";
 
 export default function DealRoomDetailPage({
   params,
@@ -63,6 +70,29 @@ export default function DealRoomDetailPage({
       qc.invalidateQueries({
         queryKey: ["deal-room", dealRoomId, "documents"],
       }),
+  });
+
+  const questionsQuery = useQuery<QuestionRead[]>({
+    queryKey: ["deal-room", dealRoomId, "questions"],
+    queryFn: () =>
+      apiFetch<QuestionRead[]>(`/deal-rooms/${dealRoomId}/questions`),
+    enabled: Number.isFinite(dealRoomId) && !!roomQuery.data,
+  });
+
+  const [latestAnswer, setLatestAnswer] = useState<AskResponse | null>(null);
+
+  const askMutation = useMutation<AskResponse, Error, string>({
+    mutationFn: (question) =>
+      apiFetch<AskResponse>(`/deal-rooms/${dealRoomId}/ask`, {
+        method: "POST",
+        body: JSON.stringify({ question }),
+      }),
+    onSuccess: (data) => {
+      setLatestAnswer(data);
+      qc.invalidateQueries({
+        queryKey: ["deal-room", dealRoomId, "questions"],
+      });
+    },
   });
 
   const onLogout = async () => {
@@ -154,6 +184,23 @@ export default function DealRoomDetailPage({
                   : null
               }
             />
+          ) : null}
+
+          <AskPanel
+            isAsking={askMutation.isPending}
+            latestAnswer={latestAnswer}
+            hasDocuments={(documentsQuery.data?.length ?? 0) > 0}
+            onAsk={async (question) => askMutation.mutateAsync(question)}
+          />
+
+          {askMutation.isError ? (
+            <p className="text-sm text-red-600">
+              Ask failed: {askMutation.error.message}
+            </p>
+          ) : null}
+
+          {questionsQuery.data ? (
+            <QuestionHistory questions={questionsQuery.data} />
           ) : null}
         </>
       ) : null}

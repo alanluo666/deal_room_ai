@@ -39,3 +39,32 @@ export interface DealRoomDocument {
   chunk_count: number;
   created_at: string;
 }
+
+export interface Citation {
+  document_id: number;
+  filename: string;
+  chunk_index: number;
+  snippet: string;
+}
+
+export interface AskRequestInput {
+  question: string;
+  top_k?: number;
+}
+
+export interface AskResponse {
+  question_id: number;
+  answer: string;
+  citations: Citation[];
+  model: string;
+}
+
+export interface QuestionRead {
+  id: number;
+  deal_room_id: number;
+  user_id: number;
+  question: string;
+  answer: string;
+  citations: Citation[];
+  created_at: string;
+}
