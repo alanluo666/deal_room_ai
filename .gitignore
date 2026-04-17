@@ -1,18 +1,47 @@
+# Environment files - only *.example templates are tracked
 .env
+.env.*
+!.env.example
+!frontend/.env.local.example
+
+# Python
 __pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+*.egg-info/
+.mypy_cache/
+.ruff_cache/
+.pytest_cache/
+.coverage
+coverage.xml
+htmlcov/
+
+# Jupyter
 .ipynb_checkpoints/
+
+# Node / frontend
+node_modules/
+frontend/.next/
+frontend/out/
+frontend/.turbo/
+frontend/tsconfig.tsbuildinfo
+
+# MLflow (only written when opted in)
 mlruns/
 mlflow.db
-api/__pycache__/
-tests/__pycache__/
-alembic/versions/__pycache__/
+
+# Local-only Docker volumes and per-deal-room uploads
 postgres_data/
 chroma_data/
 storage/
-frontend/node_modules/
-frontend/.next/
-frontend/.env.local
-frontend/tsconfig.tsbuildinfo
-.pytest_cache/
-.ruff_cache/
-*.pyc
+
+# OS / editor cruft
+.DS_Store
+.vscode/
+.idea/
+*.swp
+*.swo
+*.log

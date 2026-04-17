@@ -88,11 +88,10 @@ export interface QuestionRead {
 // ---------------------------------------------------------------------------
 // Chat (Person C slice)
 //
-// Mirrors the Pydantic ChatRequest/ChatResponse in api/schemas.py. No runtime
-// code depends on these yet; the ChatPanel + /chat route land in later steps.
-// Shapes are forward-compatible with Person A's ADK agent (message history,
-// optional session_id, reserved steps[] for agent traces) without taking any
-// ADK dependency now.
+// Mirrors the Pydantic ChatRequest/ChatResponse in api/schemas.py. Shapes are
+// forward-compatible with Person A's ADK agent (message history, optional
+// session_id, reserved steps[] for agent traces) without taking any ADK
+// dependency now.
 // ---------------------------------------------------------------------------
 
 export type ChatRole = "user" | "assistant" | "system";
