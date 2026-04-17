@@ -123,12 +123,10 @@ class AnalyzeResponse(BaseModel):
 # ---------------------------------------------------------------------------
 # Chat (Person C slice)
 #
-# DTOs for the forthcoming ``POST /deal-rooms/{id}/chat`` endpoint. The wrapper
-# route is intentionally not wired yet; these types exist so the backend and
-# frontend agree on a stable contract before any route or component code
-# depends on them. Shapes are chosen to stay compatible with Person A's later
-# ADK agent (multi-turn ``messages``, optional ``session_id``, reserved
-# ``steps`` for agent step traces) without requiring any ADK dependency now.
+# DTOs for ``POST /deal-rooms/{id}/chat``. Shapes are chosen to stay
+# compatible with Person A's later ADK agent (multi-turn ``messages``,
+# optional ``session_id``, reserved ``steps`` for agent step traces) without
+# requiring any ADK dependency now.
 # ---------------------------------------------------------------------------
 
 

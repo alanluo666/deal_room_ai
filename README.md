@@ -281,10 +281,11 @@ deal_room_ai/
 │   ├── db.py                    # SQLAlchemy async engine + session + Base
 │   ├── deps.py                  # get_current_user, vector_store, embedding, rag deps
 │   ├── document_processing.py   # extract_text, chunk_text, EmbeddingClient, build_chunks
-│   ├── main.py                  # FastAPI app, routers, CORS, /health, /predict
+│   ├── main.py                  # FastAPI app, routers, CORS, /health, /livez, /readyz, /predict
+│   ├── middleware.py            # Request-id + latency logging middleware (api.request logger)
 │   ├── models/                  # User, DealRoom, Document, Question ORM models
 │   ├── rag.py                   # RagService: embed + retrieve + grounded LLM call (ask + run_task)
-│   ├── routers/                 # auth + deal-rooms + documents + questions + analyze HTTP routers
+│   ├── routers/                 # auth + deal-rooms + documents + questions + analyze + chat HTTP routers
 │   ├── schemas.py               # Pydantic request/response models
 │   ├── service.py               # OpenAIService (run_prediction + run_rag)
 │   ├── tasks.py                 # Task enum + retrieval queries + instructions for /analyze
@@ -302,17 +303,20 @@ deal_room_ai/
 │   │   ├── AnalyzePanel.tsx
 │   │   ├── AnswerCard.tsx
 │   │   ├── AskPanel.tsx
+│   │   ├── ChatPanel.tsx
 │   │   ├── CitationList.tsx
 │   │   ├── DealRoomCard.tsx
 │   │   ├── DeleteDealRoomButton.tsx
 │   │   ├── DocumentList.tsx
 │   │   ├── DocumentUploader.tsx
+│   │   ├── FindingsPanel.tsx
 │   │   ├── QuestionHistory.tsx
 │   │   └── ui.tsx
 │   ├── lib/                     # api.ts, auth.ts, types.ts
 │   └── middleware.ts            # Route protection for /deal-rooms/*
 ├── storage/                     # Bind-mounted per-deal-room uploads (gitignored)
-├── tests/                       # pytest suite (auth, deal rooms, documents, questions, analyze)
+├── tests/                       # pytest suite (auth, deal rooms, documents, questions, analyze, chat, probes, request_logging)
+├── docs/CLOUD_RUN.md            # Reference-only walkthrough for Cloud Run deployment (no real deploy)
 ├── docs/samples/                # Synthetic PDF/DOCX/TXT samples used by DEMO.md
 ├── DEMO.md                      # 10-minute local walkthrough
 ├── docker-compose.yml           # api + postgres + chromadb (no MLflow service)
