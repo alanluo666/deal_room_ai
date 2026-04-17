@@ -5,7 +5,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from api.auth import decode_access_token
 from api.config import settings
 from api.db import get_db
+from api.document_processing import EmbeddingClient, get_embedding_client
 from api.models import User
+from api.vector_store import VectorStore, get_vector_store
 
 
 async def get_current_user(
@@ -31,3 +33,11 @@ async def get_current_user(
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="User not found")
     return user
+
+
+def vector_store_dep() -> VectorStore:
+    return get_vector_store()
+
+
+def embedding_client_dep() -> EmbeddingClient:
+    return get_embedding_client()
