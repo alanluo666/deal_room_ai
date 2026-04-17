@@ -11,6 +11,7 @@ from api.deps import vector_store_dep
 from api.routers import auth as auth_router
 from api.routers import deal_rooms as deal_rooms_router
 from api.routers import documents as documents_router
+from api.routers import questions as questions_router
 from api.schemas import PredictionRequest, PredictionResponse
 from api.service import openai_service
 from api.tracking import elapsed_seconds, timed_call, tracking_manager
@@ -29,6 +30,7 @@ app.add_middleware(
 app.include_router(auth_router.router)
 app.include_router(deal_rooms_router.router)
 app.include_router(documents_router.router)
+app.include_router(questions_router.router)
 
 
 @app.on_event("startup")

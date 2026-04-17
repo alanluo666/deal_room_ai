@@ -15,13 +15,14 @@ import pytest
 import pytest_asyncio
 from asgi_lifespan import LifespanManager
 from httpx import ASGITransport, AsyncClient
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 from sqlalchemy.pool import StaticPool
 
 from api.db import Base, get_db
 from api.deps import embedding_client_dep, vector_store_dep
 from api.main import app
-from api.models import DealRoom, Document, User  # noqa: F401  -- register metadata
+from api.models import DealRoom, Document, Question, User  # noqa: F401  -- register metadata
 from api.vector_store import Chunk, RetrievedChunk, VectorStore
 
 
@@ -32,6 +33,13 @@ async def test_engine():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
+
+    @event.listens_for(engine.sync_engine, "connect")
+    def _enable_sqlite_fk(dbapi_connection, _record) -> None:
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
     yield engine

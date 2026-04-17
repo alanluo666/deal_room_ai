@@ -7,6 +7,8 @@ from api.config import settings
 from api.db import get_db
 from api.document_processing import EmbeddingClient, get_embedding_client
 from api.models import User
+from api.rag import RagService
+from api.service import openai_service
 from api.vector_store import VectorStore, get_vector_store
 
 
@@ -41,3 +43,22 @@ def vector_store_dep() -> VectorStore:
 
 def embedding_client_dep() -> EmbeddingClient:
     return get_embedding_client()
+
+
+def rag_service_dep(
+    vector_store: VectorStore = Depends(vector_store_dep),
+    embedder: EmbeddingClient = Depends(embedding_client_dep),
+) -> RagService:
+    """Fresh :class:`RagService` per request.
+
+    Tests can override the collaborators via ``vector_store_dep`` and
+    ``embedding_client_dep`` without touching this factory. For the real LLM
+    we use the module-level :data:`openai_service` singleton; tests replace
+    the whole :func:`rag_service_dep` override with a RagService that uses a
+    stub LLM, which keeps OpenAI traffic fully mocked.
+    """
+    return RagService(
+        vector_store=vector_store,
+        embedder=embedder,
+        llm=openai_service,
+    )
