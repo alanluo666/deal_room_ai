@@ -232,23 +232,26 @@ async def test_deal_room_delete_cascades_documents(
 
 @pytest.mark.asyncio
 async def test_upload_persists_file_to_disk(client):
+    import hashlib
+
     from api.config import settings
 
-    await _register(client, "disk@example.com")
+    user_id = await _register(client, "disk@example.com")
     room_id = await _create_room(client)
-    response = await _upload_txt(client, room_id, content=b"persist me")
+    payload = b"persist me"
+    response = await _upload_txt(client, room_id, content=payload)
     assert response.status_code == 201
 
-    user_root = os.path.join(settings.STORAGE_DIR)
-    assert os.path.isdir(user_root)
-    found_any = False
-    for root, _dirs, files in os.walk(user_root):
-        for name in files:
-            if name.endswith(".txt"):
-                found_any = True
-                with open(os.path.join(root, name), "rb") as fh:
-                    assert fh.read() == b"persist me"
-    assert found_any
+    # The shared STORAGE_DIR and a fresh-per-test DB (user_id=1, room_id=1)
+    # mean sibling test runs can leave unrelated files under the same parent
+    # directory, so we pinpoint the expected file by its sha256.
+    expected_sha = hashlib.sha256(payload).hexdigest()
+    expected_path = os.path.join(
+        settings.STORAGE_DIR, str(user_id), str(room_id), f"{expected_sha}.txt"
+    )
+    assert os.path.isfile(expected_path)
+    with open(expected_path, "rb") as fh:
+        assert fh.read() == payload
 
 
 @pytest.mark.asyncio
