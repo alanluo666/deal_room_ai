@@ -1,0 +1,44 @@
+Acme Corp — Q1 2026 Internal Diligence Brief (FICTIONAL SAMPLE)
+
+Business overview
+-----------------
+Acme Corp is a fictional enterprise software vendor included here solely
+as a demo sample. It sells a financial reporting suite ("AcmeClose") to
+mid-market public companies in the United States and Canada. Primary
+personas are the controller, the VP of FP&A, and the SEC reporting lead.
+All names, numbers, and events below are invented.
+
+Financial summary
+-----------------
+Q1 2026 revenue was $5.2M, up 12% year over year. Subscription revenue
+was $4.6M (89% of total), services revenue was $0.6M. Gross margin
+held at 71% on a GAAP basis and 76% on a non-GAAP basis. Operating
+margin improved to 9% vs 4% in Q1 2025 on slower hiring and one-time
+consulting credits.
+
+Customer metrics
+----------------
+Ending ARR was $19.8M, up from $18.2M at year end. Net new ARR in
+Q1 was $1.6M. Gross retention was 94%, net retention was 108%. The top
+10 customers represented 22% of ARR; no single customer was over 5%.
+
+Operations
+----------
+Headcount grew from 82 to 97 during the quarter, with engineering and
+customer success accounting for 12 of the 15 net adds. The executive
+team is unchanged. The company opened a secondary office in Raleigh, NC
+on a three-year lease (~$18K/month) to support the customer success
+build-out.
+
+Notable items
+-------------
+1. Acme signed a new multi-year reseller agreement with "Lexton
+   Accounting Group" in late Q1. Revenue impact is not expected until
+   Q3 2026.
+2. One material customer ("BlueHarbor Industrials") put their renewal
+   on hold in February pending a platform migration decision. The
+   $420K ARR is flagged as at-risk.
+3. The company increased its cyber insurance coverage from $5M to $10M
+   following a general industry recommendation from the auditor.
+
+This brief was produced internally by the FP&A team and is not audited.

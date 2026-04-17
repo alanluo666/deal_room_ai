@@ -2,7 +2,9 @@
 
 Document Review Workspace for Smaller Deal Teams — a collaborative SaaS platform for search funds, independent sponsors, boutique M&A advisors, and small corp dev teams. The platform focuses on the document-heavy part of due diligence by bringing filings, contracts, and management transcripts into one workspace, powered by AI-driven analysis.
 
-M1 of the product slice ships multi-user accounts (JWT in an HTTP-only cookie), persistent deal rooms in Postgres, and a Next.js 15 workspace shell. M2 adds document upload, extraction, chunking, and embedding into a local Chroma server — each deal room becomes an indexed corpus. M3 adds retrieval-augmented Q&A over the uploaded documents, with grounded answers, citations, and persisted question history per deal room.
+M1 of the product slice ships multi-user accounts (JWT in an HTTP-only cookie), persistent deal rooms in Postgres, and a Next.js 15 workspace shell. M2 adds document upload, extraction, chunking, and embedding into a local Chroma server — each deal room becomes an indexed corpus. M3 adds retrieval-augmented Q&A over the uploaded documents, with grounded answers, citations, and persisted question history per deal room. M4 layers two stateless task presets (summary and risks) on top of the same grounded pipeline and adds demo polish — a delete deal-room action, a frontend analyze UI, and a runnable walkthrough in [`DEMO.md`](./DEMO.md) backed by synthetic sample documents under [`docs/samples/`](./docs/samples/).
+
+**Want to see it run?** Follow [`DEMO.md`](./DEMO.md) for a 10-minute end-to-end tour with sample documents, or keep reading for the full reference below.
 
 ## Prerequisites
 
@@ -155,6 +157,26 @@ curl -s -b cookies.txt http://localhost:8000/deal-rooms/1/questions
 
 If `OPENAI_API_KEY` is not set, `POST /ask` returns `503` with a clear error so the API degrades predictably instead of crashing. `GET /questions` continues to work in that case.
 
+### Analyze (task presets)
+
+Two task presets ride on top of the same grounded RAG pipeline: `summary` produces a short executive overview of the deal room, and `risks` produces a bulleted list of concrete risks drawn from the uploaded documents. Analyze results are **stateless** — they are not persisted to the `questions` table and can be regenerated at any time.
+
+| Method | Path                                             | Description                                                                      |
+|--------|--------------------------------------------------|----------------------------------------------------------------------------------|
+| POST   | `/deal-rooms/{deal_room_id}/analyze`             | Body: `{"task": "summary" \| "risks", "top_k"?: int (1..10, default 8)}`. Returns `{task, answer, citations, model, chunks_used}`. |
+
+Under the hood the router calls `RagService.run_task`, which retrieves with a task-specific query, passes task-specific LLM instructions, and returns citations in retrieval order. An empty deal room deterministically answers `"I don't know based on the uploaded documents."`. If `OPENAI_API_KEY` is not set the endpoint returns `503`, matching `/ask`.
+
+```bash
+curl -s -b cookies.txt -X POST http://localhost:8000/deal-rooms/1/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"task": "summary"}'
+
+curl -s -b cookies.txt -X POST http://localhost:8000/deal-rooms/1/analyze \
+  -H "Content-Type: application/json" \
+  -d '{"task": "risks"}'
+```
+
 ### Platform
 
 #### `GET /` — Root
@@ -224,10 +246,11 @@ deal_room_ai/
 │   ├── document_processing.py   # extract_text, chunk_text, EmbeddingClient, build_chunks
 │   ├── main.py                  # FastAPI app, routers, CORS, /health, /predict
 │   ├── models/                  # User, DealRoom, Document, Question ORM models
-│   ├── rag.py                   # RagService: embed + retrieve + grounded LLM call
-│   ├── routers/                 # auth + deal-rooms + documents + questions HTTP routers
+│   ├── rag.py                   # RagService: embed + retrieve + grounded LLM call (ask + run_task)
+│   ├── routers/                 # auth + deal-rooms + documents + questions + analyze HTTP routers
 │   ├── schemas.py               # Pydantic request/response models
 │   ├── service.py               # OpenAIService (run_prediction + run_rag)
+│   ├── tasks.py                 # Task enum + retrieval queries + instructions for /analyze
 │   ├── tracking.py              # MLflow tracking manager (off unless opted in)
 │   └── vector_store.py          # VectorStore interface + ChromaVectorStore (upsert/delete/query)
 ├── alembic/                     # Alembic env + 0001_initial + 0002_documents + 0003_questions
@@ -237,11 +260,14 @@ deal_room_ai/
 │   │   ├── (auth)/login         # /login page
 │   │   ├── (auth)/register      # /register page
 │   │   ├── deal-rooms           # /deal-rooms list
-│   │   └── deal-rooms/[id]      # /deal-rooms/{id} detail + uploads + ask + history
+│   │   └── deal-rooms/[id]      # /deal-rooms/{id} detail + uploads + ask + analyze + history
 │   ├── components/
+│   │   ├── AnalyzePanel.tsx
+│   │   ├── AnswerCard.tsx
 │   │   ├── AskPanel.tsx
 │   │   ├── CitationList.tsx
 │   │   ├── DealRoomCard.tsx
+│   │   ├── DeleteDealRoomButton.tsx
 │   │   ├── DocumentList.tsx
 │   │   ├── DocumentUploader.tsx
 │   │   ├── QuestionHistory.tsx
@@ -249,7 +275,9 @@ deal_room_ai/
 │   ├── lib/                     # api.ts, auth.ts, types.ts
 │   └── middleware.ts            # Route protection for /deal-rooms/*
 ├── storage/                     # Bind-mounted per-deal-room uploads (gitignored)
-├── tests/                       # pytest suite (auth, deal rooms, documents, questions)
+├── tests/                       # pytest suite (auth, deal rooms, documents, questions, analyze)
+├── docs/samples/                # Synthetic PDF/DOCX/TXT samples used by DEMO.md
+├── DEMO.md                      # 10-minute local walkthrough
 ├── docker-compose.yml           # api + postgres + chromadb (no MLflow service)
 ├── Dockerfile
 ├── MLFlow_Server_SetUp.ipynb
@@ -262,5 +290,5 @@ deal_room_ai/
 
 - **M1:** multi-user auth, per-user deal rooms, Next.js shell, pytest suite.
 - **M2:** per-deal-room document upload, text extraction (PDF/DOCX/TXT), 1000/100 chunking, embeddings, and Chroma-backed vector storage with hard-cascade deletes.
-- **M3 (this slice):** retrieval-augmented Q&A scoped to each deal room with grounded answers, ordered citations, and an append-only question history.
-- **M4 (planned):** task tracker and management dashboard.
+- **M3:** retrieval-augmented Q&A scoped to each deal room with grounded answers, ordered citations, and an append-only question history.
+- **M4 (this slice):** stateless `summary` and `risks` task presets on the grounded RAG pipeline, a frontend analyze UI with a shared `AnswerCard`, a delete-deal-room action with inline confirmation, and [`DEMO.md`](./DEMO.md) + [`docs/samples/`](./docs/samples/) for reproducible local demos.
