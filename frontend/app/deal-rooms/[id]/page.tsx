@@ -11,6 +11,7 @@ import { ChatPanel } from "@/components/ChatPanel";
 import { DeleteDealRoomButton } from "@/components/DeleteDealRoomButton";
 import { DocumentList } from "@/components/DocumentList";
 import { DocumentUploader } from "@/components/DocumentUploader";
+import { FindingsPanel } from "@/components/FindingsPanel";
 import { QuestionHistory } from "@/components/QuestionHistory";
 import { Button, Card } from "@/components/ui";
 import { apiFetch } from "@/lib/api";
@@ -250,12 +251,15 @@ export default function DealRoomDetailPage({
           <AnalyzePanel
             hasDocuments={(documentsQuery.data?.length ?? 0) > 0}
             pendingTask={pendingAnalyzeTask}
-            latestSummary={latestSummary}
-            latestRisks={latestRisks}
             errorMessage={
               analyzeMutation.isError ? analyzeMutation.error.message : null
             }
             onAnalyze={async (task) => analyzeMutation.mutateAsync(task)}
+          />
+
+          <FindingsPanel
+            latestSummary={latestSummary}
+            latestRisks={latestRisks}
           />
 
           <AskPanel
