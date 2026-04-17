@@ -7,6 +7,7 @@ import { use, useState } from "react";
 
 import { AnalyzePanel } from "@/components/AnalyzePanel";
 import { AskPanel } from "@/components/AskPanel";
+import { ChatPanel } from "@/components/ChatPanel";
 import { DeleteDealRoomButton } from "@/components/DeleteDealRoomButton";
 import { DocumentList } from "@/components/DocumentList";
 import { DocumentUploader } from "@/components/DocumentUploader";
@@ -18,6 +19,8 @@ import type {
   AnalyzeResponse,
   AnalyzeTask,
   AskResponse,
+  ChatMessage,
+  ChatResponse,
   DealRoom,
   DealRoomDocument,
   QuestionRead,
@@ -113,6 +116,16 @@ export default function DealRoomDetailPage({
       if (task === "summary") setLatestSummary(data);
       else if (task === "risks") setLatestRisks(data);
     },
+  });
+
+  // Chat lives purely in the ChatPanel's local state; we intentionally do not
+  // persist turns to the /questions table here. That contract belongs to /ask.
+  const chatMutation = useMutation<ChatResponse, Error, ChatMessage[]>({
+    mutationFn: (messages) =>
+      apiFetch<ChatResponse>(`/deal-rooms/${dealRoomId}/chat`, {
+        method: "POST",
+        body: JSON.stringify({ messages }),
+      }),
   });
 
   const pendingAnalyzeTask: AnalyzeTask | null =
@@ -257,6 +270,11 @@ export default function DealRoomDetailPage({
               Ask failed: {askMutation.error.message}
             </p>
           ) : null}
+
+          <ChatPanel
+            hasDocuments={(documentsQuery.data?.length ?? 0) > 0}
+            onSend={async (messages) => chatMutation.mutateAsync(messages)}
+          />
 
           {questionsQuery.data ? (
             <QuestionHistory questions={questionsQuery.data} />
