@@ -48,6 +48,9 @@ services:
       CHROMA_HOST: chromadb
       CHROMA_PORT: "8000"
       STORAGE_DIR: /app/storage
+      # Silence the chromadb==0.5.20 client posthog log (call fails locally;
+      # no data leaves the host). Server-side telemetry is disabled above.
+      ANONYMIZED_TELEMETRY: "False"
     ports:
       - "8000:8000"
     command: >

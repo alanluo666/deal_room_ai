@@ -2,7 +2,7 @@
 
 Document Review Workspace for Smaller Deal Teams — a collaborative SaaS platform for search funds, independent sponsors, boutique M&A advisors, and small corp dev teams. The platform focuses on the document-heavy part of due diligence by bringing filings, contracts, and management transcripts into one workspace, powered by AI-driven analysis.
 
-M1 of the product slice ships multi-user accounts (JWT in an HTTP-only cookie), persistent deal rooms in Postgres, and a Next.js 15 workspace shell. M2 adds document upload, extraction, chunking, and embedding into a local Chroma server — each deal room becomes an indexed corpus. Retrieval UI (summaries, risks, Q&A) lands in M3.
+M1 of the product slice ships multi-user accounts (JWT in an HTTP-only cookie), persistent deal rooms in Postgres, and a Next.js 15 workspace shell. M2 adds document upload, extraction, chunking, and embedding into a local Chroma server — each deal room becomes an indexed corpus. M3 adds retrieval-augmented Q&A over the uploaded documents, with grounded answers, citations, and persisted question history per deal room.
 
 ## Prerequisites
 
@@ -134,6 +134,27 @@ curl -s -b cookies.txt http://localhost:8000/deal-rooms/1/documents
 
 If extraction or embedding fails, the document row is still created but `status` becomes `"failed"` with a truncated `error_message`. Chunks and disk files belonging to a failed upload are cleaned up when the document or its deal room is deleted.
 
+### Ask (retrieval-augmented Q&A)
+
+Each deal room supports grounded question answering over its own documents. The backend embeds the question, retrieves top-K chunks from Chroma filtered to this deal room and this user, and asks the LLM to answer strictly from that context. If the retrieved context does not cover the question, the answer is deterministically `"I don't know based on the uploaded documents."`. Every ask is persisted to a `questions` row with its citations; deleting the deal room cascades the history.
+
+| Method | Path                                             | Description                                                                |
+|--------|--------------------------------------------------|----------------------------------------------------------------------------|
+| POST   | `/deal-rooms/{deal_room_id}/ask`                 | Body: `{"question": str, "top_k"?: int (1..10, default 5)}`. Returns `{question_id, answer, citations, model}`. |
+| GET    | `/deal-rooms/{deal_room_id}/questions`           | Append-only history for the room, newest first. Each entry has the question, answer, and stored citations. |
+
+Citations are returned in retrieval order (most relevant first) and each contains `document_id`, `filename`, `chunk_index`, and a `snippet` capped at 300 characters. The context passed to the LLM is capped at 8000 characters; chunks beyond that are truncated or dropped to keep prompts predictable.
+
+```bash
+curl -s -b cookies.txt -X POST http://localhost:8000/deal-rooms/1/ask \
+  -H "Content-Type: application/json" \
+  -d '{"question": "What were the top risks disclosed?", "top_k": 5}'
+
+curl -s -b cookies.txt http://localhost:8000/deal-rooms/1/questions
+```
+
+If `OPENAI_API_KEY` is not set, `POST /ask` returns `503` with a clear error so the API degrades predictably instead of crashing. `GET /questions` continues to work in that case.
+
 ### Platform
 
 #### `GET /` — Root
@@ -170,7 +191,7 @@ The five `openai_*` and `mlflow_*` fields are unchanged from earlier milestones.
 
 #### `POST /predict` — Legacy demo endpoint
 
-> This single-shot demo endpoint is kept working for backward compatibility but is considered deprecated after the M1 slice. Future AI functionality will live behind deal-room-scoped endpoints that run retrieval over uploaded documents rather than free-form text pasted into the body.
+> This single-shot demo endpoint is kept working for backward compatibility but is deprecated now that M3 ships deal-room-scoped retrieval (`/deal-rooms/{id}/ask`). New work should use the ask endpoint so answers are grounded in uploaded documents and accompanied by citations.
 
 ```bash
 curl -s -X POST http://localhost:8000/predict \
@@ -180,13 +201,15 @@ curl -s -X POST http://localhost:8000/predict \
 
 ## MLflow Tracking (opt-in only)
 
-MLflow is fully disabled by default and M2 does not add any embedding or extraction logging. Leaving `MLFLOW_TRACKING_URI` blank (as in `.env.example`) means:
+MLflow is fully disabled by default. M2 does not log anything for uploads or embeddings, and M3 does not log anything for `/ask`. Leaving `MLFLOW_TRACKING_URI` blank (as in `.env.example`) means:
 
 - No connections are attempted to any tracking server.
-- No runs, params, metrics, or artifacts are logged anywhere (including during document uploads or embedding).
+- No runs, params, metrics, or artifacts are logged anywhere (including during document uploads, embedding, or question answering).
 - `/health` reports `"mlflow_tracking_enabled": false`.
 
 To opt in later, set `MLFLOW_TRACKING_URI` to your own tracking server URL and optionally set `MLFLOW_EXPERIMENT_NAME`. There is no default remote URI in the code, the Docker Compose file, the backend settings, or this README — configuration is always explicit.
+
+The API container also sets `ANONYMIZED_TELEMETRY=False` so that the `chromadb` Python client does not attempt to send posthog telemetry events. Server-side telemetry is disabled on the Chroma container itself for the same reason.
 
 ## Project Structure
 
@@ -197,32 +220,36 @@ deal_room_ai/
 │   ├── auth.py                  # bcrypt hashing + JWT cookie helpers
 │   ├── config.py                # pydantic-settings Settings (DB, JWT, CORS, storage, Chroma)
 │   ├── db.py                    # SQLAlchemy async engine + session + Base
-│   ├── deps.py                  # get_current_user, vector_store, embedding deps
+│   ├── deps.py                  # get_current_user, vector_store, embedding, rag deps
 │   ├── document_processing.py   # extract_text, chunk_text, EmbeddingClient, build_chunks
 │   ├── main.py                  # FastAPI app, routers, CORS, /health, /predict
-│   ├── models/                  # User, DealRoom, Document ORM models
-│   ├── routers/                 # auth + deal-rooms + documents HTTP routers
+│   ├── models/                  # User, DealRoom, Document, Question ORM models
+│   ├── rag.py                   # RagService: embed + retrieve + grounded LLM call
+│   ├── routers/                 # auth + deal-rooms + documents + questions HTTP routers
 │   ├── schemas.py               # Pydantic request/response models
-│   ├── service.py               # Legacy OpenAI service for /predict
+│   ├── service.py               # OpenAIService (run_prediction + run_rag)
 │   ├── tracking.py              # MLflow tracking manager (off unless opted in)
-│   └── vector_store.py          # VectorStore interface + ChromaVectorStore
-├── alembic/                     # Alembic environment + 0001_initial + 0002_documents
+│   └── vector_store.py          # VectorStore interface + ChromaVectorStore (upsert/delete/query)
+├── alembic/                     # Alembic env + 0001_initial + 0002_documents + 0003_questions
 ├── alembic.ini
 ├── frontend/                    # Next.js 15 + TypeScript + Tailwind workspace
 │   ├── app/
 │   │   ├── (auth)/login         # /login page
 │   │   ├── (auth)/register      # /register page
 │   │   ├── deal-rooms           # /deal-rooms list
-│   │   └── deal-rooms/[id]      # /deal-rooms/{id} detail + document upload
+│   │   └── deal-rooms/[id]      # /deal-rooms/{id} detail + uploads + ask + history
 │   ├── components/
+│   │   ├── AskPanel.tsx
+│   │   ├── CitationList.tsx
 │   │   ├── DealRoomCard.tsx
 │   │   ├── DocumentList.tsx
 │   │   ├── DocumentUploader.tsx
+│   │   ├── QuestionHistory.tsx
 │   │   └── ui.tsx
 │   ├── lib/                     # api.ts, auth.ts, types.ts
 │   └── middleware.ts            # Route protection for /deal-rooms/*
 ├── storage/                     # Bind-mounted per-deal-room uploads (gitignored)
-├── tests/                       # pytest suite (auth, deal rooms, documents)
+├── tests/                       # pytest suite (auth, deal rooms, documents, questions)
 ├── docker-compose.yml           # api + postgres + chromadb (no MLflow service)
 ├── Dockerfile
 ├── MLFlow_Server_SetUp.ipynb
@@ -234,6 +261,6 @@ deal_room_ai/
 ## Milestone status
 
 - **M1:** multi-user auth, per-user deal rooms, Next.js shell, pytest suite.
-- **M2 (this slice):** per-deal-room document upload, text extraction (PDF/DOCX/TXT), 1000/100 chunking, embeddings, and Chroma-backed vector storage with hard-cascade deletes. No retrieval UI yet.
-- **M3 (planned):** retrieval-augmented summaries, risks, and Q&A scoped to each deal room.
+- **M2:** per-deal-room document upload, text extraction (PDF/DOCX/TXT), 1000/100 chunking, embeddings, and Chroma-backed vector storage with hard-cascade deletes.
+- **M3 (this slice):** retrieval-augmented Q&A scoped to each deal room with grounded answers, ordered citations, and an append-only question history.
 - **M4 (planned):** task tracker and management dashboard.
