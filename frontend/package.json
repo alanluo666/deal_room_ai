@@ -1,0 +1,33 @@
+{
+  "name": "deal-room-ai-frontend",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "3.10.0",
+    "@tanstack/react-query": "5.62.0",
+    "clsx": "2.1.1",
+    "next": "15.5.15",
+    "react": "19.2.5",
+    "react-dom": "19.2.5",
+    "react-hook-form": "7.54.0",
+    "zod": "3.23.8"
+  },
+  "devDependencies": {
+    "@types/node": "22.10.0",
+    "@types/react": "19.2.14",
+    "@types/react-dom": "19.2.3",
+    "autoprefixer": "10.4.20",
+    "eslint": "9.15.0",
+    "eslint-config-next": "15.5.15",
+    "postcss": "8.4.49",
+    "tailwindcss": "3.4.15",
+    "typescript": "5.7.2"
+  }
+}
