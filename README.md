@@ -1,170 +1,165 @@
-# Deal Room AI
+## Deal Room AI
 
 Document Review Workspace for Smaller Deal Teams — a collaborative SaaS platform for search funds, independent sponsors, boutique M&A advisors, and small corp dev teams. The platform focuses on the document-heavy part of due diligence by bringing filings, contracts, and management transcripts into one workspace, powered by AI-driven analysis.
 
+M1 of the product slice ships multi-user accounts (JWT in an HTTP-only cookie), persistent deal rooms in Postgres, and a Next.js 15 workspace shell. Document upload, retrieval, and AI summarization land in later milestones.
+
 ## Prerequisites
 
-- Python 3.12+
-- Docker (for containerized deployment)
-- An OpenAI API key (required for the `/predict` endpoint)
-- Access to the team MLflow server (optional, for experiment tracking)
+- Python 3.12+ (only needed if you run the API outside Docker)
+- Node.js 20+ and npm (for the frontend)
+- Docker and Docker Compose (recommended for local development)
+- OpenAI API key (required only for the legacy `POST /predict` endpoint)
 
-## Environment Setup
+## Local Development Quickstart
 
-1. Copy the example environment file:
+### 1. Environment variables
 
 ```bash
 cp .env.example .env
+cp frontend/.env.local.example frontend/.env.local
 ```
 
-2. Fill in your values in `.env`:
-
-```env
-OPENAI_API_KEY=your_openai_api_key_here
-OPENAI_MODEL=gpt-5-mini
-OPENAI_MAX_OUTPUT_TOKENS=400
-MLFLOW_TRACKING_URI=http://<EXTERNAL_IP>:5000
-MLFLOW_EXPERIMENT_NAME=team-project
-```
-
-> **Note:** Never commit your `.env` file to Git. It is already in `.gitignore`.
-
-## Running Locally (without Docker)
+Generate a secret for JWT signing and paste it into `.env` as `JWT_SECRET`:
 
 ```bash
+python -c "import secrets; print(secrets.token_urlsafe(32))"
+```
+
+`.env.example` ships with `MLFLOW_TRACKING_URI=` and `MLFLOW_EXPERIMENT_NAME=` intentionally blank. Leave them blank for local development — MLflow is fully disabled in that state and the API will not attempt any remote connections.
+
+### 2. Start the backend (API + Postgres)
+
+```bash
+docker compose up -d
+```
+
+The first run will build the API image, start Postgres, apply Alembic migrations, and expose the API at `http://localhost:8000`. Confirm it is healthy:
+
+```bash
+curl -s localhost:8000/health | python -m json.tool
+```
+
+### 3. Start the frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+The workspace is available at `http://localhost:3000`.
+
+### 4. Run the backend tests
+
+```bash
+docker compose exec api pytest
+```
+
+All auth and deal-room tests run against an in-process SQLite database with LLM and embedding calls fully mocked — no network calls leave the process.
+
+## Running the API Outside Docker
+
+You still need Postgres reachable at the URL in `DATABASE_URL`. The easiest option is to run only the Postgres service from Compose:
+
+```bash
+docker compose up -d postgres
 pip install -r requirements.txt
-uvicorn api.main:app --host 0.0.0.0 --port 8000
+alembic upgrade head
+uvicorn api.main:app --host 0.0.0.0 --port 8000 --reload
 ```
-
-The API will be available at `http://localhost:8000`.
-
-## Running with Docker
-
-### Build the image
-
-```bash
-docker build -t deal-room-ai .
-```
-
-### Run the container
-
-```bash
-docker run --rm -p 8000:8000 --env-file .env deal-room-ai
-```
-
-The API will be available at `http://localhost:8000`.
 
 ## API Endpoints
 
-### `GET /` — Root
+All new endpoints accept and set an HTTP-only session cookie named `deal_room_ai_session`. The frontend sends the cookie automatically with `credentials: "include"`. If you hit these endpoints with `curl`, use `-c cookies.txt` and `-b cookies.txt` to persist the session between calls.
 
-Returns a welcome message confirming the API is running.
+### Auth
+
+| Method | Path             | Description                                                  |
+|--------|------------------|--------------------------------------------------------------|
+| POST   | `/auth/register` | Create a user, set session cookie, return the user           |
+| POST   | `/auth/login`    | Verify credentials, set session cookie, return the user      |
+| POST   | `/auth/logout`   | Clear the session cookie                                     |
+| GET    | `/auth/me`       | Return the current user; requires a valid session cookie     |
+
+```bash
+curl -s -c cookies.txt -X POST http://localhost:8000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{"email": "you@example.com", "password": "a-strong-password"}'
+
+curl -s -b cookies.txt http://localhost:8000/auth/me
+```
+
+### Deal rooms
+
+All deal-room endpoints require a session cookie and are automatically scoped to the owning user. Cross-user access returns `404`.
+
+| Method | Path                     | Description                             |
+|--------|--------------------------|-----------------------------------------|
+| GET    | `/deal-rooms`            | List deal rooms owned by the caller     |
+| POST   | `/deal-rooms`            | Create a deal room                      |
+| GET    | `/deal-rooms/{id}`       | Fetch one deal room                     |
+| DELETE | `/deal-rooms/{id}`       | Hard delete a deal room (cascades when children land in M2) |
+
+```bash
+curl -s -b cookies.txt -X POST http://localhost:8000/deal-rooms \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Project Acme", "target_company": "Acme Corp"}'
+
+curl -s -b cookies.txt http://localhost:8000/deal-rooms
+```
+
+### Platform
+
+#### `GET /` — Root
 
 ```bash
 curl http://localhost:8000/
 ```
 
-Response:
-
 ```json
-{
-  "message": "Deal Room AI API is running"
-}
+{ "message": "Deal Room AI API is running" }
 ```
 
-### `GET /health` — Health Check
-
-Returns service status including model configuration and MLflow tracking state.
+#### `GET /health`
 
 ```bash
-curl http://localhost:8000/health
+curl -s http://localhost:8000/health | python -m json.tool
 ```
-
-Response:
 
 ```json
 {
   "status": "ok",
   "openai_configured": true,
   "openai_model": "gpt-5-mini",
-  "mlflow_tracking_enabled": true,
-  "mlflow_tracking_uri": "http://<EXTERNAL_IP>:5000",
-  "mlflow_experiment_name": "team-project"
+  "mlflow_tracking_enabled": false,
+  "mlflow_tracking_uri": "",
+  "mlflow_experiment_name": "",
+  "db_ok": true
 }
 ```
 
-### `POST /predict` — Model Prediction
+The five `openai_*` and `mlflow_*` fields are the same as before; `db_ok` is new in M1 and reports the result of a trivial `SELECT 1` against Postgres.
 
-Accepts document text and returns AI-generated analysis. Supports three task types: `summary` (default), `risks`, and `qa`.
+#### `POST /predict` — Legacy demo endpoint
 
-#### Example: Summarize a document
-
-```bash
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "summary",
-    "document_text": "Acme Corp reported $5M revenue in Q1 2026, up 20% year-over-year. Operating margins improved to 15% from 12%. The company expanded into two new markets and signed three enterprise contracts."
-  }'
-```
-
-Response:
-
-```json
-{
-  "result": "<AI-generated summary of the document>",
-  "model": "gpt-5-mini",
-  "mlflow_tracking_enabled": true
-}
-```
-
-#### Example: Identify risks
+> This single-shot demo endpoint is kept working for backward compatibility but is considered deprecated after the M1 slice. Future AI functionality will live behind deal-room-scoped endpoints that run retrieval over uploaded documents rather than free-form text pasted into the body.
 
 ```bash
-curl -X POST http://localhost:8000/predict \
+curl -s -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
-  -d '{
-    "task": "risks",
-    "document_text": "The company has a single customer representing 60% of revenue. Key management personnel have no non-compete agreements."
-  }'
+  -d '{"task": "summary", "document_text": "Acme Corp reported $5M revenue in Q1 2026..."}'
 ```
 
-#### Example: Ask a question about a document
+## MLflow Tracking (opt-in only)
 
-```bash
-curl -X POST http://localhost:8000/predict \
-  -H "Content-Type: application/json" \
-  -d '{
-    "task": "qa",
-    "document_text": "Acme Corp was founded in 2019 and is headquartered in Austin, TX. The company has 45 employees.",
-    "question": "Where is the company headquartered?"
-  }'
-```
+MLflow is fully disabled by default. Leaving `MLFLOW_TRACKING_URI` blank (as in `.env.example`) means:
 
-#### Request Body Schema
+- No connections are attempted to any tracking server.
+- No runs, params, metrics, or artifacts are logged anywhere.
+- `/health` reports `"mlflow_tracking_enabled": false`.
 
-| Field           | Type   | Required | Description                                                   |
-|-----------------|--------|----------|---------------------------------------------------------------|
-| `task`          | string | No       | Task type: `summary` (default), `risks`, or `qa`             |
-| `document_text` | string | Yes      | The document text to analyze (must be non-empty)              |
-| `question`      | string | No       | Question to answer (used when `task` is `qa`)                 |
-
-#### Response Body Schema
-
-| Field                    | Type    | Description                              |
-|--------------------------|---------|------------------------------------------|
-| `result`                 | string  | The AI-generated analysis                |
-| `model`                  | string  | The model used for inference             |
-| `mlflow_tracking_enabled`| boolean | Whether the prediction was logged to MLflow |
-
-## MLflow Tracking
-
-Every call to `/predict` is automatically logged to the team MLflow server with:
-
-- **Parameters:** provider, model, task type, whether a question was included
-- **Metrics:** latency (seconds), success (1 or 0)
-
-View the MLflow UI at: `http://<EXTERNAL_IP>:5000`
+To opt in later, set `MLFLOW_TRACKING_URI` to your own tracking server URL and optionally set `MLFLOW_EXPERIMENT_NAME`. There is no default remote URI in the code, the Docker Compose file, the backend settings, or this README — configuration is always explicit.
 
 ## Project Structure
 
@@ -172,14 +167,38 @@ View the MLflow UI at: `http://<EXTERNAL_IP>:5000`
 deal_room_ai/
 ├── api/
 │   ├── __init__.py
-│   ├── main.py          # FastAPI app and endpoint definitions
-│   ├── schemas.py        # Pydantic request/response models
-│   ├── service.py        # OpenAI service for LLM inference
-│   └── tracking.py       # MLflow tracking manager
-├── .env.example           # Environment variable template
-├── .gitignore
-├── Dockerfile             # Container definition
-├── MLFlow_Server_SetUp.ipynb  # Notebook to verify MLflow connectivity
-├── README.md
-└── requirements.txt
+│   ├── auth.py             # bcrypt hashing + JWT cookie helpers
+│   ├── config.py           # pydantic-settings Settings (DB, JWT, CORS)
+│   ├── db.py               # SQLAlchemy async engine + session + Base
+│   ├── deps.py             # get_current_user, get_db dependencies
+│   ├── main.py             # FastAPI app, routers, CORS, /health, /predict
+│   ├── models/             # User, DealRoom ORM models
+│   ├── routers/            # auth + deal-rooms HTTP routers
+│   ├── schemas.py          # Pydantic request/response models
+│   ├── service.py          # Legacy OpenAI service for /predict
+│   └── tracking.py         # MLflow tracking manager (off unless opted in)
+├── alembic/                # Alembic environment + initial migration
+├── alembic.ini
+├── frontend/               # Next.js 15 + TypeScript + Tailwind workspace
+│   ├── app/
+│   │   ├── (auth)/login    # /login page
+│   │   ├── (auth)/register # /register page
+│   │   └── deal-rooms      # /deal-rooms workspace
+│   ├── components/
+│   ├── lib/                # api.ts, auth.ts, types.ts
+│   └── middleware.ts       # Route protection for /deal-rooms/*
+├── tests/                  # pytest suite for auth + deal-room scoping
+├── docker-compose.yml      # api + postgres services (no MLflow service)
+├── Dockerfile
+├── MLFlow_Server_SetUp.ipynb
+├── pyproject.toml
+├── requirements.txt
+└── .env.example
 ```
+
+## Milestone status
+
+- **M1 (this slice):** multi-user auth, per-user deal rooms, Next.js shell, pytest suite.
+- **M2 (planned):** document upload per deal room, text extraction, chunking, embedding into ChromaDB, MLflow opt-in for embedding runs.
+- **M3 (planned):** retrieval-augmented summaries, risks, and Q&A scoped to each deal room.
+- **M4 (planned):** task tracker and management dashboard.
