@@ -32,3 +32,8 @@ class DealRoom(Base):
         cascade="all, delete-orphan",
         passive_deletes=True,
     )
+    questions: Mapped[list["Question"]] = relationship(  # noqa: F821
+        back_populates="deal_room",
+        cascade="all, delete-orphan",
+        passive_deletes=True,
+    )

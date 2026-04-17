@@ -22,7 +22,7 @@ from api.db import Base, get_db
 from api.deps import embedding_client_dep, vector_store_dep
 from api.main import app
 from api.models import DealRoom, Document, User  # noqa: F401  -- register metadata
-from api.vector_store import Chunk, VectorStore
+from api.vector_store import Chunk, RetrievedChunk, VectorStore
 
 
 @pytest_asyncio.fixture
@@ -45,10 +45,27 @@ async def test_session_factory(test_engine):
     return async_sessionmaker(test_engine, expire_on_commit=False, class_=AsyncSession)
 
 
+def _flatten_where(where: dict | None) -> dict:
+    """Flatten a chroma-style ``where`` filter into a plain key/value dict.
+
+    Chroma requires ``$and`` for multiple equality conditions; production code
+    always uses it, so the fake accepts both shapes.
+    """
+    if not where:
+        return {}
+    if "$and" in where:
+        merged: dict = {}
+        for cond in where["$and"]:
+            merged.update(cond)
+        return merged
+    return dict(where)
+
+
 class FakeVectorStore(VectorStore):
     def __init__(self) -> None:
         self.upserts: list[Chunk] = []
         self.deleted_document_ids: list[int] = []
+        self.last_query: dict | None = None
 
     def upsert_chunks(self, chunks) -> None:
         self.upserts.extend(chunks)
@@ -59,6 +76,35 @@ class FakeVectorStore(VectorStore):
 
     def count_for_document(self, document_id: int) -> int:
         return sum(1 for c in self.upserts if c.document_id == document_id)
+
+    def query(
+        self,
+        *,
+        embedding: list[float],
+        where: dict,
+        top_k: int,
+    ) -> list[RetrievedChunk]:
+        self.last_query = {"embedding": embedding, "where": where, "top_k": top_k}
+        flat = _flatten_where(where)
+
+        def matches(chunk: Chunk) -> bool:
+            for key, expected in flat.items():
+                if getattr(chunk, key, None) != expected:
+                    return False
+            return True
+
+        candidates = [c for c in self.upserts if matches(c)]
+        return [
+            RetrievedChunk(
+                document_id=c.document_id,
+                deal_room_id=c.deal_room_id,
+                user_id=c.user_id,
+                chunk_index=c.chunk_index,
+                text=c.text,
+                distance=float(idx),
+            )
+            for idx, c in enumerate(candidates[:top_k])
+        ]
 
     def health_check(self) -> bool:
         return True

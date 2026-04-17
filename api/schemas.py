@@ -70,3 +70,34 @@ class DocumentRead(BaseModel):
     error_message: str | None
     chunk_count: int
     created_at: datetime
+
+
+class AskRequest(BaseModel):
+    question: str = Field(min_length=1, max_length=2000)
+    top_k: int = Field(default=5, ge=1, le=10)
+
+
+class Citation(BaseModel):
+    document_id: int
+    filename: str
+    chunk_index: int
+    snippet: str
+
+
+class AskResponse(BaseModel):
+    question_id: int
+    answer: str
+    citations: list[Citation]
+    model: str
+
+
+class QuestionRead(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    deal_room_id: int
+    user_id: int
+    question: str
+    answer: str
+    citations: list[Citation]
+    created_at: datetime

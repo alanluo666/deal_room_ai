@@ -16,6 +16,16 @@ class Chunk:
     embedding: list[float]
 
 
+@dataclass(frozen=True)
+class RetrievedChunk:
+    document_id: int
+    deal_room_id: int
+    user_id: int
+    chunk_index: int
+    text: str
+    distance: float | None
+
+
 class VectorStore:
     """Abstract interface used by the documents router and tests."""
 
@@ -26,6 +36,15 @@ class VectorStore:
         raise NotImplementedError
 
     def count_for_document(self, document_id: int) -> int:
+        raise NotImplementedError
+
+    def query(
+        self,
+        *,
+        embedding: list[float],
+        where: dict,
+        top_k: int,
+    ) -> list[RetrievedChunk]:
         raise NotImplementedError
 
     def health_check(self) -> bool:
@@ -75,6 +94,41 @@ class ChromaVectorStore(VectorStore):
     def count_for_document(self, document_id: int) -> int:
         result = self._collection.get(where={"document_id": document_id}, include=[])
         return len(result.get("ids", []))
+
+    def query(
+        self,
+        *,
+        embedding: list[float],
+        where: dict,
+        top_k: int,
+    ) -> list[RetrievedChunk]:
+        result = self._collection.query(
+            query_embeddings=[embedding],
+            n_results=top_k,
+            where=where,
+            include=["documents", "metadatas", "distances"],
+        )
+        ids = (result.get("ids") or [[]])[0]
+        docs = (result.get("documents") or [[]])[0]
+        metas = (result.get("metadatas") or [[]])[0]
+        dists = (result.get("distances") or [[]])[0]
+
+        retrieved: list[RetrievedChunk] = []
+        for i in range(len(ids)):
+            meta = metas[i] if i < len(metas) else {}
+            if not meta:
+                continue
+            retrieved.append(
+                RetrievedChunk(
+                    document_id=int(meta.get("document_id", 0)),
+                    deal_room_id=int(meta.get("deal_room_id", 0)),
+                    user_id=int(meta.get("user_id", 0)),
+                    chunk_index=int(meta.get("chunk_index", 0)),
+                    text=docs[i] if i < len(docs) else "",
+                    distance=float(dists[i]) if i < len(dists) else None,
+                )
+            )
+        return retrieved
 
     def health_check(self) -> bool:
         try:
