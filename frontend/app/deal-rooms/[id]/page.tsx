@@ -7,6 +7,7 @@ import { use, useState } from "react";
 
 import { AnalyzePanel } from "@/components/AnalyzePanel";
 import { AskPanel } from "@/components/AskPanel";
+import { DeleteDealRoomButton } from "@/components/DeleteDealRoomButton";
 import { DocumentList } from "@/components/DocumentList";
 import { DocumentUploader } from "@/components/DocumentUploader";
 import { QuestionHistory } from "@/components/QuestionHistory";
@@ -119,6 +120,16 @@ export default function DealRoomDetailPage({
       ? analyzeMutation.variables
       : null;
 
+  const deleteRoomMutation = useMutation<void, Error, void>({
+    mutationFn: () =>
+      apiFetch<void>(`/deal-rooms/${dealRoomId}`, { method: "DELETE" }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deal-rooms"] });
+      router.push("/deal-rooms");
+      router.refresh();
+    },
+  });
+
   const onLogout = async () => {
     await logout.mutateAsync();
     router.push("/login");
@@ -159,10 +170,23 @@ export default function DealRoomDetailPage({
             </p>
           ) : null}
         </div>
-        <div className="flex gap-2">
+        <div className="flex flex-col items-end gap-2">
           <Button variant="secondary" onClick={onLogout}>
             Sign out
           </Button>
+          {roomQuery.data ? (
+            <DeleteDealRoomButton
+              isDeleting={deleteRoomMutation.isPending}
+              errorMessage={
+                deleteRoomMutation.isError
+                  ? deleteRoomMutation.error.message
+                  : null
+              }
+              onConfirm={async () => {
+                await deleteRoomMutation.mutateAsync();
+              }}
+            />
+          ) : null}
         </div>
       </header>
 
