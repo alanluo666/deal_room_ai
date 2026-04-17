@@ -43,6 +43,36 @@ class TrackingManager:
             if error_message:
                 mlflow.log_param("error_message", error_message[:250])
 
+    def log_ask(
+        self,
+        *,
+        model_name: str,
+        top_k: int,
+        chunks_used: int,
+        latency_seconds: float,
+        success: bool,
+        error_message: str | None = None,
+    ) -> None:
+        """No-op unless ``MLFLOW_TRACKING_URI`` is explicitly set.
+
+        Matches ``log_prediction``'s guard so M3 adds no remote logging by
+        default.
+        """
+        if not self.enabled:
+            return
+
+        with mlflow.start_run():
+            mlflow.log_param("provider", "openai")
+            mlflow.log_param("model", model_name)
+            mlflow.log_param("task", "ask")
+            mlflow.log_param("top_k", top_k)
+            mlflow.log_metric("chunks_used", chunks_used)
+            mlflow.log_metric("latency_seconds", latency_seconds)
+            mlflow.log_metric("success", int(success))
+
+            if error_message:
+                mlflow.log_param("error_message", error_message[:250])
+
 
 tracking_manager = TrackingManager()
 

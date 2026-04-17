@@ -67,5 +67,30 @@ class OpenAIService:
         )
         return self._extract_text(response)
 
+    def run_rag(self, *, prompt: str, instructions: str | None = None) -> str:
+        """Grounded Q&A inference.
+
+        Callers are expected to build ``prompt`` from retrieved context and
+        include an explicit instruction to answer only from that context. This
+        method deliberately does not massage the prompt further.
+        """
+        if not self.client:
+            raise RuntimeError("OPENAI_API_KEY is not set")
+
+        instr = instructions or (
+            "You are a due diligence analyst answering questions about "
+            "specific company documents. Answer only from the provided "
+            "context. If the context does not contain the answer, say so "
+            "explicitly. Do not invent facts or citations."
+        )
+
+        response = self.client.responses.create(
+            model=self.model,
+            instructions=instr,
+            input=prompt,
+            max_output_tokens=self.max_output_tokens,
+        )
+        return self._extract_text(response)
+
 
 openai_service = OpenAIService()
