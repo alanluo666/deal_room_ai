@@ -4,3 +4,12 @@ __pycache__/
 mlruns/
 mlflow.db
 api/__pycache__/
+tests/__pycache__/
+alembic/versions/__pycache__/
+postgres_data/
+frontend/node_modules/
+frontend/.next/
+frontend/.env.local
+.pytest_cache/
+.ruff_cache/
+*.pyc
