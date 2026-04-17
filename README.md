@@ -211,6 +211,37 @@ curl -s http://localhost:8000/health | python -m json.tool
 
 The five `openai_*` and `mlflow_*` fields are unchanged from earlier milestones. `db_ok` (from M1) reports a `SELECT 1` against Postgres. `storage_ok` (new in M2) reports whether `STORAGE_DIR` is a writable directory; `chroma_ok` (new in M2) reports the Chroma heartbeat.
 
+#### `GET /livez`
+
+```bash
+curl -s http://localhost:8000/livez
+```
+
+```json
+{ "status": "ok" }
+```
+
+Liveness probe. Intentionally dependency-free: if the process can answer HTTP at all, it is considered live. Designed for Cloud Run / Kubernetes liveness probes so a slow database or Chroma heartbeat never causes a container restart.
+
+#### `GET /readyz`
+
+```bash
+curl -s http://localhost:8000/readyz | python -m json.tool
+```
+
+```json
+{
+  "status": "ok",
+  "db_ok": true,
+  "chroma_ok": true,
+  "storage_ok": true
+}
+```
+
+Readiness probe. Returns `200` only when Postgres, Chroma, and `STORAGE_DIR` are all healthy; returns `503` with per-dependency booleans otherwise. `/health` (above) keeps its full diagnostic payload; `/readyz` is the minimal answer to "should this instance receive traffic?".
+
+Every request also flows through a small middleware that echoes or generates an `X-Request-ID` response header and emits one logfmt line per request on the `api.request` logger (`method`, `path`, `status`, `latency_ms`, `client_ip`, `request_id`). No bodies, query strings, cookies, or auth headers are logged.
+
 #### `POST /predict` — Legacy demo endpoint
 
 > This single-shot demo endpoint is kept working for backward compatibility but is deprecated now that M3 ships deal-room-scoped retrieval (`/deal-rooms/{id}/ask`). New work should use the ask endpoint so answers are grounded in uploaded documents and accompanied by citations.
@@ -232,6 +263,12 @@ MLflow is fully disabled by default. M2 does not log anything for uploads or emb
 To opt in later, set `MLFLOW_TRACKING_URI` to your own tracking server URL and optionally set `MLFLOW_EXPERIMENT_NAME`. There is no default remote URI in the code, the Docker Compose file, the backend settings, or this README — configuration is always explicit.
 
 The API container also sets `ANONYMIZED_TELEMETRY=False` so that the `chromadb` Python client does not attempt to send posthog telemetry events. Server-side telemetry is disabled on the Chroma container itself for the same reason.
+
+## Cloud Run readiness
+
+The API image is structured so that it can be deployed to Google Cloud Run later without source-code changes: the container honors the `$PORT` environment variable Cloud Run injects (falling back to `8000` locally so compose behavior is unchanged), `/livez` and `/readyz` are exposed as liveness and readiness probe targets, and request logs are written in a logfmt format that Cloud Logging ingests from stdout without any SDK.
+
+**This repository does not perform any real Cloud Run deploy.** No `gcloud` commands are executed, no cloud credentials are stored, and no Google Cloud SDK is added as a dependency. See [`docs/CLOUD_RUN.md`](./docs/CLOUD_RUN.md) for a reference-only walkthrough of the expected env vars, database/Chroma options, Alembic-migration pattern, probe configuration, and a copy-paste `gcloud` template with placeholders.
 
 ## Project Structure
 
