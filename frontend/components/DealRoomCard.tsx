@@ -1,5 +1,7 @@
 "use client";
 
+import Link from "next/link";
+
 import type { DealRoom } from "@/lib/types";
 
 import { Button, Card } from "./ui";
@@ -13,14 +15,19 @@ interface Props {
 export function DealRoomCard({ dealRoom, onDelete, deleting }: Props) {
   return (
     <Card className="flex flex-col gap-2">
-      <div>
-        <h3 className="text-base font-semibold">{dealRoom.name}</h3>
+      <Link
+        href={`/deal-rooms/${dealRoom.id}`}
+        className="group flex flex-col gap-1"
+      >
+        <h3 className="text-base font-semibold group-hover:underline">
+          {dealRoom.name}
+        </h3>
         {dealRoom.target_company ? (
           <p className="text-sm text-slate-500 dark:text-slate-400">
             Target: {dealRoom.target_company}
           </p>
         ) : null}
-      </div>
+      </Link>
       <div className="mt-2 flex items-center justify-between text-xs text-slate-500 dark:text-slate-400">
         <span>Created {new Date(dealRoom.created_at).toLocaleDateString()}</span>
         <Button
