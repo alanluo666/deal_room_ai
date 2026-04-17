@@ -2,12 +2,14 @@ import os
 
 from fastapi import Depends, FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.config import settings
 from api.db import get_db
 from api.deps import vector_store_dep
+from api.middleware import install_request_logging
 from api.routers import analyze as analyze_router
 from api.routers import auth as auth_router
 from api.routers import chat as chat_router
@@ -28,6 +30,8 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+install_request_logging(app)
 
 app.include_router(auth_router.router)
 app.include_router(deal_rooms_router.router)
@@ -53,6 +57,53 @@ def startup_event():
 @app.get("/")
 def root():
     return {"message": "Deal Room AI API is running"}
+
+
+@app.get("/livez")
+def livez():
+    """Liveness probe.
+
+    Intentionally trivial: if the process can answer this endpoint at all, it
+    is considered live. Does not touch the database, Chroma, storage, or any
+    external service.
+    """
+    return {"status": "ok"}
+
+
+@app.get("/readyz")
+async def readyz(
+    db: AsyncSession = Depends(get_db),
+    vector_store: VectorStore = Depends(vector_store_dep),
+):
+    """Readiness probe.
+
+    Returns 200 only when the API can actually serve traffic, which requires
+    the database, the vector store, and the local storage directory to all be
+    usable. Returns 503 with per-dependency booleans when any check fails.
+    """
+    try:
+        await db.execute(text("SELECT 1"))
+        db_ok = True
+    except Exception:
+        db_ok = False
+
+    try:
+        chroma_ok = vector_store.health_check()
+    except Exception:
+        chroma_ok = False
+
+    storage_ok = os.path.isdir(settings.STORAGE_DIR) and os.access(
+        settings.STORAGE_DIR, os.W_OK
+    )
+
+    payload = {
+        "status": "ok" if (db_ok and chroma_ok and storage_ok) else "not_ready",
+        "db_ok": db_ok,
+        "chroma_ok": chroma_ok,
+        "storage_ok": storage_ok,
+    }
+    status_code = 200 if payload["status"] == "ok" else 503
+    return JSONResponse(status_code=status_code, content=payload)
 
 
 @app.get("/health")
