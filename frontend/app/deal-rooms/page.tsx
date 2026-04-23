@@ -3,7 +3,7 @@
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
@@ -24,12 +24,18 @@ const createSchema = z.object({
 
 type CreateValues = z.infer<typeof createSchema>;
 
+// Toolbar state lives purely on the client. No backend /deal-rooms query
+// params change; the full list is fetched once and filtered/sorted in memory.
+type SortOrder = "newest" | "oldest" | "name-asc";
+
 export default function DealRoomsPage() {
   const router = useRouter();
   const { data: user } = useUser();
   const logout = useLogout();
   const qc = useQueryClient();
   const [showForm, setShowForm] = useState(false);
+  const [search, setSearch] = useState("");
+  const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
 
   const listQuery = useQuery<DealRoom[]>({
     queryKey: ["deal-rooms"],
@@ -50,6 +56,30 @@ export default function DealRoomsPage() {
       apiFetch<void>(`/deal-rooms/${id}`, { method: "DELETE" }),
     onSuccess: () => qc.invalidateQueries({ queryKey: ["deal-rooms"] }),
   });
+
+  const visibleRooms = useMemo(() => {
+    const rooms = listQuery.data ?? [];
+    const query = search.trim().toLowerCase();
+    const filtered = query
+      ? rooms.filter((room) => {
+          const name = room.name.toLowerCase();
+          const target = (room.target_company ?? "").toLowerCase();
+          return name.includes(query) || target.includes(query);
+        })
+      : rooms;
+
+    const sorted = [...filtered];
+    if (sortOrder === "name-asc") {
+      sorted.sort((a, b) => a.name.localeCompare(b.name));
+    } else {
+      sorted.sort((a, b) => {
+        const diff =
+          new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+        return sortOrder === "newest" ? diff : -diff;
+      });
+    }
+    return sorted;
+  }, [listQuery.data, search, sortOrder]);
 
   const {
     register,
@@ -136,19 +166,65 @@ export default function DealRoomsPage() {
       ) : null}
 
       {listQuery.data && listQuery.data.length > 0 ? (
-        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-          {listQuery.data.map((room) => (
-            <DealRoomCard
-              key={room.id}
-              dealRoom={room}
-              onDelete={(id) => deleteMutation.mutate(id)}
-              deleting={
-                deleteMutation.isPending &&
-                deleteMutation.variables === room.id
-              }
+        <>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
+            <Input
+              type="search"
+              placeholder="Search deal rooms"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              aria-label="Search deal rooms"
+              className="sm:flex-1"
             />
-          ))}
-        </div>
+            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+              <span className="shrink-0">Sort</span>
+              <select
+                value={sortOrder}
+                onChange={(event) =>
+                  setSortOrder(event.target.value as SortOrder)
+                }
+                className="rounded-md border border-slate-300 bg-white px-2 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-900"
+                aria-label="Sort deal rooms"
+              >
+                <option value="newest">Newest first</option>
+                <option value="oldest">Oldest first</option>
+                <option value="name-asc">Name A–Z</option>
+              </select>
+            </label>
+          </div>
+
+          <p className="text-xs text-slate-500 dark:text-slate-400">
+            {(() => {
+              const total = listQuery.data.length;
+              const shown = visibleRooms.length;
+              const filtering = search.trim().length > 0 && shown !== total;
+              const noun = total === 1 ? "deal room" : "deal rooms";
+              return filtering
+                ? `Showing ${shown} of ${total} ${noun}`
+                : `${total} ${noun}`;
+            })()}
+          </p>
+
+          {visibleRooms.length === 0 ? (
+            <p className="text-sm text-slate-500 dark:text-slate-400">
+              No deal rooms match your search.
+            </p>
+          ) : (
+            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+              {visibleRooms.map((room) => (
+                <DealRoomCard
+                  key={room.id}
+                  dealRoom={room}
+                  onDelete={(id) => deleteMutation.mutate(id)}
+                  deleting={
+                    deleteMutation.isPending &&
+                    deleteMutation.variables === room.id
+                  }
+                />
+              ))}
+            </div>
+          )}
+        </>
       ) : null}
     </main>
   );

@@ -1,0 +1,44 @@
+# Version control + editor metadata
+.git
+.gitignore
+.github
+.vscode
+.idea
+.DS_Store
+
+# Python virtualenvs and caches
+.venv
+venv
+__pycache__
+**/__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.mypy_cache
+.ruff_cache
+*.egg-info
+.coverage
+htmlcov
+
+# Jupyter notebook checkpoints
+*.ipynb_checkpoints
+
+# Frontend build artifacts - the API image does not need these
+frontend/node_modules
+frontend/.next
+frontend/out
+frontend/.turbo
+
+# Local, per-deal-room uploaded documents (bind-mounted in compose)
+storage
+
+# Local environment files. Do not ship secrets into the image.
+# The example file stays available so documentation/tooling that
+# references it still works inside the build context.
+.env
+.env.*
+!.env.example
+
+# One-off helper script for synthetic docs; not needed at runtime.
+docs/samples/_generate.py

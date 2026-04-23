@@ -211,6 +211,37 @@ curl -s http://localhost:8000/health | python -m json.tool
 
 The five `openai_*` and `mlflow_*` fields are unchanged from earlier milestones. `db_ok` (from M1) reports a `SELECT 1` against Postgres. `storage_ok` (new in M2) reports whether `STORAGE_DIR` is a writable directory; `chroma_ok` (new in M2) reports the Chroma heartbeat.
 
+#### `GET /livez`
+
+```bash
+curl -s http://localhost:8000/livez
+```
+
+```json
+{ "status": "ok" }
+```
+
+Liveness probe. Intentionally dependency-free: if the process can answer HTTP at all, it is considered live. Designed for Cloud Run / Kubernetes liveness probes so a slow database or Chroma heartbeat never causes a container restart.
+
+#### `GET /readyz`
+
+```bash
+curl -s http://localhost:8000/readyz | python -m json.tool
+```
+
+```json
+{
+  "status": "ok",
+  "db_ok": true,
+  "chroma_ok": true,
+  "storage_ok": true
+}
+```
+
+Readiness probe. Returns `200` only when Postgres, Chroma, and `STORAGE_DIR` are all healthy; returns `503` with per-dependency booleans otherwise. `/health` (above) keeps its full diagnostic payload; `/readyz` is the minimal answer to "should this instance receive traffic?".
+
+Every request also flows through a small middleware that echoes or generates an `X-Request-ID` response header and emits one logfmt line per request on the `api.request` logger (`method`, `path`, `status`, `latency_ms`, `client_ip`, `request_id`). No bodies, query strings, cookies, or auth headers are logged.
+
 #### `POST /predict` — Legacy demo endpoint
 
 > This single-shot demo endpoint is kept working for backward compatibility but is deprecated now that M3 ships deal-room-scoped retrieval (`/deal-rooms/{id}/ask`). New work should use the ask endpoint so answers are grounded in uploaded documents and accompanied by citations.
@@ -233,6 +264,12 @@ To opt in later, set `MLFLOW_TRACKING_URI` to your own tracking server URL and o
 
 The API container also sets `ANONYMIZED_TELEMETRY=False` so that the `chromadb` Python client does not attempt to send posthog telemetry events. Server-side telemetry is disabled on the Chroma container itself for the same reason.
 
+## Cloud Run readiness
+
+The API image is structured so that it can be deployed to Google Cloud Run later without source-code changes: the container honors the `$PORT` environment variable Cloud Run injects (falling back to `8000` locally so compose behavior is unchanged), `/livez` and `/readyz` are exposed as liveness and readiness probe targets, and request logs are written in a logfmt format that Cloud Logging ingests from stdout without any SDK.
+
+**This repository does not perform any real Cloud Run deploy.** No `gcloud` commands are executed, no cloud credentials are stored, and no Google Cloud SDK is added as a dependency. See [`docs/CLOUD_RUN.md`](./docs/CLOUD_RUN.md) for a reference-only walkthrough of the expected env vars, database/Chroma options, Alembic-migration pattern, probe configuration, and a copy-paste `gcloud` template with placeholders.
+
 ## Project Structure
 
 ```
@@ -244,10 +281,11 @@ deal_room_ai/
 │   ├── db.py                    # SQLAlchemy async engine + session + Base
 │   ├── deps.py                  # get_current_user, vector_store, embedding, rag deps
 │   ├── document_processing.py   # extract_text, chunk_text, EmbeddingClient, build_chunks
-│   ├── main.py                  # FastAPI app, routers, CORS, /health, /predict
+│   ├── main.py                  # FastAPI app, routers, CORS, /health, /livez, /readyz, /predict
+│   ├── middleware.py            # Request-id + latency logging middleware (api.request logger)
 │   ├── models/                  # User, DealRoom, Document, Question ORM models
 │   ├── rag.py                   # RagService: embed + retrieve + grounded LLM call (ask + run_task)
-│   ├── routers/                 # auth + deal-rooms + documents + questions + analyze HTTP routers
+│   ├── routers/                 # auth + deal-rooms + documents + questions + analyze + chat HTTP routers
 │   ├── schemas.py               # Pydantic request/response models
 │   ├── service.py               # OpenAIService (run_prediction + run_rag)
 │   ├── tasks.py                 # Task enum + retrieval queries + instructions for /analyze
@@ -265,17 +303,20 @@ deal_room_ai/
 │   │   ├── AnalyzePanel.tsx
 │   │   ├── AnswerCard.tsx
 │   │   ├── AskPanel.tsx
+│   │   ├── ChatPanel.tsx
 │   │   ├── CitationList.tsx
 │   │   ├── DealRoomCard.tsx
 │   │   ├── DeleteDealRoomButton.tsx
 │   │   ├── DocumentList.tsx
 │   │   ├── DocumentUploader.tsx
+│   │   ├── FindingsPanel.tsx
 │   │   ├── QuestionHistory.tsx
 │   │   └── ui.tsx
 │   ├── lib/                     # api.ts, auth.ts, types.ts
 │   └── middleware.ts            # Route protection for /deal-rooms/*
 ├── storage/                     # Bind-mounted per-deal-room uploads (gitignored)
-├── tests/                       # pytest suite (auth, deal rooms, documents, questions, analyze)
+├── tests/                       # pytest suite (auth, deal rooms, documents, questions, analyze, chat, probes, request_logging)
+├── docs/CLOUD_RUN.md            # Reference-only walkthrough for Cloud Run deployment (no real deploy)
 ├── docs/samples/                # Synthetic PDF/DOCX/TXT samples used by DEMO.md
 ├── DEMO.md                      # 10-minute local walkthrough
 ├── docker-compose.yml           # api + postgres + chromadb (no MLflow service)
