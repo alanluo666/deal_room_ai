@@ -25,13 +25,18 @@ export function DealRoomGridSkeleton({ count = 4 }: { count?: number }) {
 
 export function DealRoomHeaderSkeleton() {
   return (
-    <Card className="flex flex-col gap-3">
-      <Skeleton className="h-6 w-1/2" />
-      <Skeleton className="h-4 w-1/3" />
-      <div className="flex gap-2 pt-1">
-        <Skeleton className="h-5 w-20 rounded-full" />
-        <Skeleton className="h-5 w-28 rounded-full" />
+    <Card className="flex items-start gap-4 p-6 sm:p-7">
+      <Skeleton className="h-12 w-12 rounded-xl" />
+      <div className="flex-1 space-y-3">
+        <Skeleton className="h-3 w-20" />
+        <Skeleton className="h-6 w-1/2" />
+        <div className="flex flex-wrap gap-4 pt-2">
+          <Skeleton className="h-4 w-32" />
+          <Skeleton className="h-4 w-28" />
+          <Skeleton className="h-4 w-24" />
+        </div>
       </div>
+      <Skeleton className="h-9 w-9 rounded-md" />
     </Card>
   );
 }

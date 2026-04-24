@@ -40,7 +40,7 @@ import { FieldError } from "@/components/ui/field-error";
 import type { ChatMessage, ChatResponse, Citation } from "@/lib/types";
 import { cn } from "@/lib/utils";
 
-import { CitationList } from "./CitationList";
+import { CitationChips } from "./CitationList";
 
 const LOCAL_DEV_STUB_MODEL = "local-dev-stub";
 const MAX_CONTENT_LENGTH = 4000;
@@ -136,17 +136,27 @@ export function ChatPanel({ onSend, hasDocuments }: Props) {
   const isEmpty = turns.length === 0;
 
   return (
-    <Card className="flex flex-col gap-3 p-0">
-      <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
-        <div>
-          <div className="flex items-center gap-2">
-            <BotIcon className="h-4 w-4 text-primary" aria-hidden="true" />
-            <h3 className="text-sm font-semibold">Chat with this deal room</h3>
+    <Card className="flex flex-col gap-0 overflow-hidden p-0">
+      <div className="flex items-start justify-between gap-3 border-b border-border bg-[linear-gradient(180deg,hsl(var(--primary)/0.05),transparent)] px-5 pb-4 pt-5">
+        <div className="flex items-start gap-3">
+          <span
+            aria-hidden="true"
+            className="flex h-9 w-9 items-center justify-center rounded-lg bg-primary/10 text-primary ring-1 ring-primary/15"
+          >
+            <BotIcon className="h-4 w-4" />
+          </span>
+          <div>
+            <p className="text-[11px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+              Diligence analyst
+            </p>
+            <h3 className="text-sm font-semibold tracking-tight">
+              Chat with this deal room
+            </h3>
+            <p className="mt-0.5 text-xs text-muted-foreground">
+              Multi-turn conversation grounded in the uploaded documents.
+              Citations are attached as source chips under each reply.
+            </p>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Multi-turn conversation grounded in the uploaded documents.
-            Citations appear below each assistant reply.
-          </p>
         </div>
         <Button
           type="button"
@@ -162,7 +172,7 @@ export function ChatPanel({ onSend, hasDocuments }: Props) {
       </div>
 
       {isStubMode ? (
-        <div className="mx-5 rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
+        <div className="mx-5 mt-3 rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
           <strong className="font-medium">Local-dev stub mode.</strong>{" "}
           OpenAI is not configured on the server, so replies are placeholder
           text. Set <code>OPENAI_API_KEY</code> and restart the API to get
@@ -175,7 +185,7 @@ export function ChatPanel({ onSend, hasDocuments }: Props) {
         role="log"
         aria-live="polite"
         aria-relevant="additions"
-        className="h-[420px] overflow-y-auto px-5 pb-2"
+        className="h-[460px] overflow-y-auto bg-muted/10 px-5 pb-2"
       >
         {isEmpty ? (
           <div className="flex h-full items-center justify-center py-6">
@@ -214,18 +224,27 @@ export function ChatPanel({ onSend, hasDocuments }: Props) {
                 ) : null}
                 <div
                   className={cn(
-                    "max-w-[85%] rounded-lg px-3 py-2 text-sm",
+                    "max-w-[85%] rounded-2xl px-3.5 py-2.5 text-sm shadow-soft",
                     turn.role === "user"
-                      ? "bg-primary text-primary-foreground"
-                      : "border border-border bg-muted/40 text-foreground",
+                      ? "rounded-tr-sm bg-primary text-primary-foreground"
+                      : "rounded-tl-sm border border-border bg-background text-foreground",
                   )}
                 >
-                  <p className="whitespace-pre-wrap">{turn.content}</p>
-                  {turn.role === "assistant" && turn.citations ? (
-                    <CitationList citations={turn.citations} />
+                  <p className="whitespace-pre-wrap leading-relaxed">
+                    {turn.content}
+                  </p>
+                  {turn.role === "assistant" &&
+                  turn.citations &&
+                  turn.citations.length > 0 ? (
+                    <div className="mt-2 space-y-1.5">
+                      <p className="text-[10px] font-medium uppercase tracking-wide text-muted-foreground">
+                        Sources
+                      </p>
+                      <CitationChips citations={turn.citations} />
+                    </div>
                   ) : null}
                   {turn.role === "assistant" && turn.model ? (
-                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5 border-t border-border/70 pt-2">
                       <Badge
                         variant="outline"
                         className="font-normal normal-case"
@@ -265,7 +284,7 @@ export function ChatPanel({ onSend, hasDocuments }: Props) {
       </div>
 
       <form
-        className="flex flex-col gap-2 border-t border-border bg-background/60 px-5 py-3"
+        className="sticky bottom-0 flex flex-col gap-2 border-t border-border bg-background/95 px-5 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/80"
         onSubmit={onSubmitForm}
       >
         <textarea

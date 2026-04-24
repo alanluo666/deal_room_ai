@@ -30,17 +30,24 @@ export function QuestionHistory({ questions }: Props) {
 
   return (
     <Card className="p-0">
-      <div className="flex items-center gap-2 px-5 py-4">
-        <HistoryIcon
-          className="h-4 w-4 text-muted-foreground"
-          aria-hidden="true"
-        />
-        <div>
-          <h3 className="text-sm font-semibold">Past questions</h3>
-          <p className="text-xs text-muted-foreground">
-            Previous questions and answers in this deal room.
-          </p>
+      <div className="flex items-center justify-between gap-2 px-5 py-4">
+        <div className="flex items-center gap-2">
+          <HistoryIcon
+            className="h-4 w-4 text-muted-foreground"
+            aria-hidden="true"
+          />
+          <div>
+            <h3 className="text-sm font-semibold tracking-tight">
+              Past questions
+            </h3>
+            <p className="text-xs text-muted-foreground">
+              Previous questions and answers in this deal room.
+            </p>
+          </div>
         </div>
+        <span className="rounded-full bg-muted px-2 py-0.5 text-[11px] font-medium tabular-nums text-muted-foreground">
+          {questions.length}
+        </span>
       </div>
       <Separator />
       <ul className="divide-y divide-border">

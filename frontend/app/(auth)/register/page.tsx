@@ -6,7 +6,8 @@ import { useRouter } from "next/navigation";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
-import { Building2Icon, Loader2Icon } from "@/components/icons";
+import { DealRoomLogo } from "@/components/branding/DealRoomLogo";
+import { Loader2Icon } from "@/components/icons";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { FieldError } from "@/components/ui/field-error";
@@ -47,25 +48,15 @@ export default function RegisterPage() {
 
   return (
     <main className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background p-6">
-      <div
-        aria-hidden="true"
-        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_hsl(var(--primary)/0.12),_transparent_55%)]"
-      />
+      <AuthBackdrop />
       <div className="relative w-full max-w-sm">
-        <div className="mb-6 flex items-center justify-center gap-2">
-          <span className="flex h-9 w-9 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-soft">
-            <Building2Icon className="h-5 w-5" aria-hidden="true" />
-          </span>
-          <span className="text-base font-semibold tracking-tight">
-            Deal Room AI
-          </span>
-        </div>
-        <Card className="flex flex-col gap-4 shadow-elevated">
-          <div>
+        <BrandLockup />
+        <Card className="flex flex-col gap-5 border-border/80 p-6 shadow-elevated sm:p-7">
+          <div className="space-y-1">
             <h1 className="text-xl font-semibold tracking-tight">
               Create your account
             </h1>
-            <p className="mt-1 text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground">
               Spin up your first deal room in seconds.
             </p>
           </div>
@@ -130,7 +121,46 @@ export default function RegisterPage() {
             </Link>
           </p>
         </Card>
+        <p className="mt-6 text-center text-xs text-muted-foreground">
+          Your documents stay scoped to the deal room you upload them in.
+        </p>
       </div>
     </main>
+  );
+}
+
+function BrandLockup() {
+  return (
+    <div className="mb-6 flex flex-col items-center gap-3 text-center">
+      <DealRoomLogo
+        variant="icon"
+        className="h-12 w-12 drop-shadow-[0_6px_16px_rgba(79,70,229,0.35)]"
+      />
+      <div>
+        <p className="text-base font-semibold tracking-tight">Deal Room AI</p>
+        <p className="mt-0.5 text-xs text-muted-foreground">
+          AI-powered due diligence workspace
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function AuthBackdrop() {
+  return (
+    <>
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(ellipse_at_top,_hsl(var(--primary)/0.12),_transparent_55%)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-x-0 top-0 h-[460px] bg-[linear-gradient(to_bottom,hsl(var(--primary)/0.04),transparent)]"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute inset-0 [background-image:linear-gradient(to_right,hsl(var(--border))_1px,transparent_1px),linear-gradient(to_bottom,hsl(var(--border))_1px,transparent_1px)] [background-size:56px_56px] opacity-[0.35] [mask-image:radial-gradient(ellipse_at_center,black,transparent_70%)]"
+      />
+    </>
   );
 }

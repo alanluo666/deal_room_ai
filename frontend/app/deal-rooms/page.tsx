@@ -6,11 +6,13 @@ import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
+import { DealRoomLogo } from "@/components/branding/DealRoomLogo";
 import { DealRoomCard } from "@/components/DealRoomCard";
 import { Building2Icon, PlusIcon, SearchIcon } from "@/components/icons";
 import { EmptyState } from "@/components/shell/EmptyState";
 import { DealRoomGridSkeleton } from "@/components/shell/Skeletons";
 import { Button, FieldError, Input, Label } from "@/components/ui";
+import { Card } from "@/components/ui/card";
 import {
   Dialog,
   DialogContent,
@@ -23,6 +25,7 @@ import { toast } from "@/components/ui/toaster";
 import { apiFetch } from "@/lib/api";
 import { useUser } from "@/lib/auth";
 import type { DealRoom, DealRoomCreateInput } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 const createSchema = z.object({
   name: z.string().min(1, "Required").max(255),
@@ -36,6 +39,8 @@ const createSchema = z.object({
 type CreateValues = z.infer<typeof createSchema>;
 
 type SortOrder = "newest" | "oldest" | "name-asc";
+
+const SEVEN_DAYS_MS = 7 * 24 * 60 * 60 * 1000;
 
 export default function DealRoomsPage() {
   const { data: user } = useUser();
@@ -80,8 +85,9 @@ export default function DealRoomsPage() {
     },
   });
 
+  const rooms = listQuery.data ?? [];
+
   const visibleRooms = useMemo(() => {
-    const rooms = listQuery.data ?? [];
     const query = search.trim().toLowerCase();
     const filtered = query
       ? rooms.filter((room) => {
@@ -102,7 +108,20 @@ export default function DealRoomsPage() {
       });
     }
     return sorted;
-  }, [listQuery.data, search, sortOrder]);
+  }, [rooms, search, sortOrder]);
+
+  // Local-only KPIs, computed from already-loaded deal-room list. No extra
+  // network calls and nothing fabricated — every metric comes from a field
+  // that exists on the DealRoom type.
+  const kpis = useMemo(() => {
+    const total = rooms.length;
+    const withTarget = rooms.filter((r) => !!r.target_company).length;
+    const now = Date.now();
+    const recent = rooms.filter(
+      (r) => now - new Date(r.created_at).getTime() <= SEVEN_DAYS_MS,
+    ).length;
+    return { total, withTarget, recent };
+  }, [rooms]);
 
   const form = useForm<CreateValues>({ resolver: zodResolver(createSchema) });
   const {
@@ -121,28 +140,37 @@ export default function DealRoomsPage() {
     setDialogOpen(false);
   };
 
-  const total = listQuery.data?.length ?? 0;
+  const total = rooms.length;
   const shown = visibleRooms.length;
   const filtering = search.trim().length > 0 && shown !== total;
+  const hasRooms = total > 0;
 
   return (
-    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
-      <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Deal rooms</h1>
-          <p className="text-sm text-muted-foreground">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-8">
+      <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <div className="mb-2 inline-flex items-center gap-1.5 rounded-full border border-border bg-card py-0.5 pl-1 pr-2.5 text-[11px] font-medium text-muted-foreground shadow-soft">
+            <DealRoomLogo variant="icon" className="h-4 w-4" />
+            Deal Room AI
+          </div>
+          <h1 className="text-3xl font-semibold tracking-tight text-foreground">
+            Deal rooms
+          </h1>
+          <p className="mt-1.5 max-w-2xl text-sm text-muted-foreground">
             {user
               ? `Signed in as ${user.email}. Workspaces where you organize diligence materials and ask grounded questions.`
               : "Workspaces where you organize diligence materials and ask grounded questions."}
           </p>
         </div>
-        <Button onClick={() => setDialogOpen(true)}>
+        <Button onClick={() => setDialogOpen(true)} size="lg" className="shrink-0">
           <PlusIcon aria-hidden="true" />
           New deal room
         </Button>
       </header>
 
-      {listQuery.data && listQuery.data.length > 0 ? (
+      {hasRooms ? <KpiRow kpis={kpis} /> : null}
+
+      {hasRooms ? (
         <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
             <SearchIcon
@@ -176,8 +204,8 @@ export default function DealRoomsPage() {
         </div>
       ) : null}
 
-      {listQuery.data && listQuery.data.length > 0 ? (
-        <p className="-mt-2 text-xs text-muted-foreground">
+      {hasRooms ? (
+        <p className="-mt-4 text-xs text-muted-foreground">
           {filtering
             ? `Showing ${shown} of ${total} ${total === 1 ? "deal room" : "deal rooms"}`
             : `${total} ${total === 1 ? "deal room" : "deal rooms"}`}
@@ -199,7 +227,7 @@ export default function DealRoomsPage() {
         />
       ) : null}
 
-      {listQuery.data && listQuery.data.length === 0 ? (
+      {listQuery.data && !hasRooms ? (
         <EmptyState
           icon={Building2Icon}
           title="No deal rooms yet"
@@ -213,7 +241,7 @@ export default function DealRoomsPage() {
         />
       ) : null}
 
-      {listQuery.data && visibleRooms.length === 0 && total > 0 ? (
+      {hasRooms && visibleRooms.length === 0 ? (
         <EmptyState
           icon={SearchIcon}
           title="No matches"
@@ -281,6 +309,53 @@ export default function DealRoomsPage() {
           </form>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+interface KpiRowProps {
+  kpis: { total: number; withTarget: number; recent: number };
+}
+
+function KpiRow({ kpis }: KpiRowProps) {
+  const items = [
+    {
+      label: "Total deal rooms",
+      value: kpis.total,
+      hint: "All workspaces in your account",
+      accent: "text-indigo-600 dark:text-indigo-400",
+    },
+    {
+      label: "With target company",
+      value: kpis.withTarget,
+      hint: "Rooms with a named target",
+      accent: "text-emerald-600 dark:text-emerald-400",
+    },
+    {
+      label: "Created this week",
+      value: kpis.recent,
+      hint: "New rooms in the last 7 days",
+      accent: "text-amber-600 dark:text-amber-400",
+    },
+  ];
+  return (
+    <div className="grid grid-cols-1 gap-3 sm:grid-cols-3">
+      {items.map((it) => (
+        <Card key={it.label} className="flex flex-col gap-1 p-4">
+          <p className="text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+            {it.label}
+          </p>
+          <p
+            className={cn(
+              "text-2xl font-semibold tracking-tight tabular-nums",
+              it.accent,
+            )}
+          >
+            {it.value}
+          </p>
+          <p className="text-xs text-muted-foreground">{it.hint}</p>
+        </Card>
+      ))}
     </div>
   );
 }

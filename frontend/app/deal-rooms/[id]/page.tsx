@@ -13,6 +13,7 @@ import {
   AlertTriangleIcon,
   ArrowLeftIcon,
   BotIcon,
+  Building2Icon,
   FileTextIcon,
   MessageCircleIcon,
   MoreHorizontalIcon,
@@ -23,7 +24,6 @@ import {
   DealRoomHeaderSkeleton,
   DocumentListSkeleton,
 } from "@/components/shell/Skeletons";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
@@ -83,13 +83,15 @@ export default function DealRoomDetailPage({
   }
 
   const room = roomQuery.data;
+  const docCount = documents.length;
+  const pastQuestions = questionsQuery.data ?? [];
 
   return (
     <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
       <div>
         <Link
           href="/deal-rooms"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          className="inline-flex items-center gap-1.5 rounded-md text-sm text-muted-foreground transition-colors hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background"
         >
           <ArrowLeftIcon className="h-3.5 w-3.5" aria-hidden="true" />
           All deal rooms
@@ -117,50 +119,94 @@ export default function DealRoomDetailPage({
 
       {room ? (
         <>
-          <Card className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
-            <div className="min-w-0 flex-1">
-              <h1 className="truncate text-2xl font-semibold tracking-tight">
-                {room.name}
-              </h1>
-              <div className="mt-2 flex flex-wrap items-center gap-2">
-                {room.target_company ? (
-                  <Badge variant="outline" className="font-normal normal-case">
-                    Target · {room.target_company}
-                  </Badge>
-                ) : null}
-                <Badge variant="secondary" className="font-normal normal-case">
-                  {documents.length}{" "}
-                  {documents.length === 1 ? "document" : "documents"}
-                </Badge>
-                <Badge variant="secondary" className="font-normal normal-case">
-                  Created {formatRelativeTime(new Date(room.created_at))}
-                </Badge>
+          <Card className="relative overflow-hidden p-0">
+            <div
+              aria-hidden="true"
+              className="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-primary/60 to-transparent"
+            />
+            <div
+              aria-hidden="true"
+              className="pointer-events-none absolute -right-24 -top-24 h-64 w-64 rounded-full bg-primary/5 blur-3xl"
+            />
+            <div className="relative flex flex-col gap-5 p-6 sm:flex-row sm:items-start sm:justify-between sm:p-7">
+              <div className="flex min-w-0 flex-1 items-start gap-4">
+                <span
+                  aria-hidden="true"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl bg-gradient-to-br from-indigo-500/15 to-indigo-500/5 text-primary ring-1 ring-primary/20"
+                >
+                  <Building2Icon className="h-6 w-6" />
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs font-medium uppercase tracking-[0.14em] text-muted-foreground">
+                    Deal room
+                  </p>
+                  <h1 className="mt-0.5 truncate text-2xl font-semibold tracking-tight text-foreground sm:text-[1.6rem]">
+                    {room.name}
+                  </h1>
+                  <dl className="mt-4 flex flex-wrap items-center gap-x-6 gap-y-2 text-sm">
+                    {room.target_company ? (
+                      <MetaItem
+                        label="Target"
+                        value={room.target_company}
+                        accent
+                      />
+                    ) : null}
+                    <MetaItem
+                      label="Documents"
+                      value={
+                        documentsQuery.isLoading
+                          ? "…"
+                          : `${docCount} ${
+                              docCount === 1 ? "document" : "documents"
+                            }`
+                      }
+                    />
+                    <MetaItem
+                      label="Created"
+                      value={formatRelativeTime(new Date(room.created_at))}
+                      title={new Date(room.created_at).toLocaleString()}
+                    />
+                  </dl>
+                </div>
+              </div>
+              <div className="flex items-center gap-2 self-start">
+                <DropdownMenu>
+                  <DropdownMenuTrigger
+                    aria-label="Deal room actions"
+                    className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input bg-background text-muted-foreground shadow-soft transition-colors hover:bg-accent hover:text-foreground"
+                  >
+                    <MoreHorizontalIcon
+                      className="h-4 w-4"
+                      aria-hidden="true"
+                    />
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent>
+                    <DropdownMenuItem
+                      destructive
+                      onClick={() => setDeleteOpen(true)}
+                    >
+                      <TrashIcon className="h-4 w-4" aria-hidden="true" />
+                      Delete deal room
+                    </DropdownMenuItem>
+                  </DropdownMenuContent>
+                </DropdownMenu>
               </div>
             </div>
-            <DropdownMenu>
-              <DropdownMenuTrigger
-                aria-label="Deal room actions"
-                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-accent hover:text-foreground"
-              >
-                <MoreHorizontalIcon className="h-4 w-4" aria-hidden="true" />
-              </DropdownMenuTrigger>
-              <DropdownMenuContent>
-                <DropdownMenuItem
-                  destructive
-                  onClick={() => setDeleteOpen(true)}
-                >
-                  <TrashIcon className="h-4 w-4" aria-hidden="true" />
-                  Delete deal room
-                </DropdownMenuItem>
-              </DropdownMenuContent>
-            </DropdownMenu>
           </Card>
 
-          <Tabs value={tab} onValueChange={setTab}>
-            <TabsList>
+          <Tabs value={tab} onValueChange={setTab} variant="underline">
+            <TabsList className="w-full overflow-x-auto">
               <TabsTrigger value="documents">
                 <FileTextIcon className="h-4 w-4" aria-hidden="true" />
                 Documents
+                {docCount > 0 ? (
+                  <span
+                    aria-hidden="true"
+                    className="ml-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground"
+                  >
+                    {docCount}
+                  </span>
+                ) : null}
               </TabsTrigger>
               <TabsTrigger value="findings">
                 <SparklesIcon className="h-4 w-4" aria-hidden="true" />
@@ -169,6 +215,14 @@ export default function DealRoomDetailPage({
               <TabsTrigger value="ask">
                 <MessageCircleIcon className="h-4 w-4" aria-hidden="true" />
                 Ask
+                {pastQuestions.length > 0 ? (
+                  <span
+                    aria-hidden="true"
+                    className="ml-1 rounded-full bg-muted px-1.5 py-0.5 text-[10px] font-semibold tabular-nums text-muted-foreground"
+                  >
+                    {pastQuestions.length}
+                  </span>
+                ) : null}
               </TabsTrigger>
               <TabsTrigger value="chat">
                 <BotIcon className="h-4 w-4" aria-hidden="true" />
@@ -177,6 +231,11 @@ export default function DealRoomDetailPage({
             </TabsList>
 
             <TabsContent value="documents" className="flex flex-col gap-4">
+              <SectionHeader
+                icon={FileTextIcon}
+                title="Data room"
+                description="Upload and manage the documents indexed into this deal room."
+              />
               <DocumentUploader
                 isUploading={uploadMutation.isPending}
                 onUpload={async (file) => {
@@ -201,6 +260,11 @@ export default function DealRoomDetailPage({
             </TabsContent>
 
             <TabsContent value="findings" className="flex flex-col gap-4">
+              <SectionHeader
+                icon={SparklesIcon}
+                title="AI findings"
+                description="Grounded summary and risks generated from the uploaded documents."
+              />
               <FindingsPanel
                 hasDocuments={hasDocuments}
                 pendingTask={pendingAnalyzeTask}
@@ -211,6 +275,11 @@ export default function DealRoomDetailPage({
             </TabsContent>
 
             <TabsContent value="ask" className="flex flex-col gap-4">
+              <SectionHeader
+                icon={MessageCircleIcon}
+                title="Research"
+                description="Ask grounded questions and browse your past queries for this deal room."
+              />
               <AskPanel
                 isAsking={askMutation.isPending}
                 latestAnswer={latestAnswer}
@@ -223,6 +292,11 @@ export default function DealRoomDetailPage({
             </TabsContent>
 
             <TabsContent value="chat" className="flex flex-col gap-4">
+              <SectionHeader
+                icon={BotIcon}
+                title="Diligence analyst"
+                description="Multi-turn conversation grounded in the uploaded documents."
+              />
               <ChatPanel
                 hasDocuments={hasDocuments}
                 onSend={async (messages) => chatMutation.mutateAsync(messages)}
@@ -267,6 +341,55 @@ export default function DealRoomDetailPage({
           </DialogFooter>
         </DialogContent>
       </Dialog>
+    </div>
+  );
+}
+
+interface MetaItemProps {
+  label: string;
+  value: string;
+  accent?: boolean;
+  title?: string;
+}
+
+function MetaItem({ label, value, accent, title }: MetaItemProps) {
+  return (
+    <div className="flex min-w-0 items-center gap-2" title={title}>
+      <dt className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+        {label}
+      </dt>
+      <dd
+        className={
+          accent
+            ? "truncate font-medium text-foreground"
+            : "truncate text-muted-foreground"
+        }
+      >
+        {value}
+      </dd>
+    </div>
+  );
+}
+
+interface SectionHeaderProps {
+  icon: React.ComponentType<React.SVGProps<SVGSVGElement>>;
+  title: string;
+  description: string;
+}
+
+function SectionHeader({ icon: Icon, title, description }: SectionHeaderProps) {
+  return (
+    <div className="flex items-start gap-3 pt-1">
+      <span
+        aria-hidden="true"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary"
+      >
+        <Icon className="h-4 w-4" />
+      </span>
+      <div>
+        <h2 className="text-base font-semibold tracking-tight">{title}</h2>
+        <p className="text-sm text-muted-foreground">{description}</p>
+      </div>
     </div>
   );
 }

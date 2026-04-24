@@ -19,13 +19,24 @@ import { cn } from "@/lib/utils";
  * swap to `@radix-ui/react-tabs` is a drop-in replacement. Supports
  * controlled and uncontrolled modes, keyboard left/right to change tabs,
  * and proper ARIA roles.
+ *
+ * Two visual variants are supported:
+ * - "pill"      (default) — segmented pill bar, backed by `bg-muted`.
+ * - "underline"           — executive style, transparent row with an
+ *                           accent underline on the active tab.
+ *
+ * The variant is propagated from `<TabsList>` to its triggers via context
+ * so `<TabsTrigger>` does not have to repeat it.
  */
+
+type TabsVariant = "pill" | "underline";
 
 interface TabsContextValue {
   value: string;
   setValue: (next: string) => void;
   idBase: string;
   orientation: "horizontal" | "vertical";
+  variant: TabsVariant;
 }
 
 const TabsContext = createContext<TabsContextValue | null>(null);
@@ -43,6 +54,7 @@ interface TabsProps extends Omit<HTMLAttributes<HTMLDivElement>, "onChange"> {
   defaultValue?: string;
   onValueChange?: (value: string) => void;
   orientation?: "horizontal" | "vertical";
+  variant?: TabsVariant;
   children?: ReactNode;
 }
 
@@ -51,6 +63,7 @@ export function Tabs({
   defaultValue,
   onValueChange,
   orientation = "horizontal",
+  variant = "pill",
   className,
   children,
   ...props
@@ -68,14 +81,15 @@ export function Tabs({
   );
 
   const ctx = useMemo<TabsContextValue>(
-    () => ({ value: current, setValue, idBase, orientation }),
-    [current, setValue, idBase, orientation],
+    () => ({ value: current, setValue, idBase, orientation, variant }),
+    [current, setValue, idBase, orientation, variant],
   );
 
   return (
     <TabsContext.Provider value={ctx}>
       <div
         data-orientation={orientation}
+        data-variant={variant}
         className={cn(
           orientation === "vertical" ? "flex gap-6" : "flex flex-col gap-4",
           className,
@@ -93,14 +107,21 @@ interface TabsListProps extends HTMLAttributes<HTMLDivElement> {
 }
 
 export function TabsList({ className, children, ...props }: TabsListProps) {
-  const { orientation } = useTabs("TabsList");
+  const { orientation, variant } = useTabs("TabsList");
+
+  const variantCls =
+    variant === "underline"
+      ? "h-auto gap-1 rounded-none border-b border-border bg-transparent p-0 text-muted-foreground"
+      : "gap-1 rounded-lg bg-muted p-1 text-muted-foreground";
+
   return (
     <div
       role="tablist"
       aria-orientation={orientation}
       className={cn(
-        "inline-flex items-center gap-1 rounded-lg bg-muted p-1 text-muted-foreground",
+        "inline-flex items-center",
         orientation === "vertical" ? "flex-col" : "flex-row",
+        variantCls,
         className,
       )}
       {...props}
@@ -124,7 +145,13 @@ export function TabsTrigger({
   children,
   ...props
 }: TabsTriggerProps) {
-  const { value: current, setValue, idBase, orientation } = useTabs("TabsTrigger");
+  const {
+    value: current,
+    setValue,
+    idBase,
+    orientation,
+    variant,
+  } = useTabs("TabsTrigger");
   const active = current === value;
   const triggerRef = useRef<HTMLButtonElement | null>(null);
 
@@ -154,6 +181,22 @@ export function TabsTrigger({
     }
   };
 
+  const pillCls = cn(
+    "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all",
+    "disabled:pointer-events-none disabled:opacity-50",
+    active
+      ? "bg-background text-foreground shadow-soft"
+      : "hover:text-foreground",
+  );
+
+  const underlineCls = cn(
+    "group relative inline-flex items-center justify-center gap-2 whitespace-nowrap border-b-2 px-3 py-2.5 text-sm font-medium transition-colors",
+    "disabled:pointer-events-none disabled:opacity-50",
+    active
+      ? "border-primary text-foreground"
+      : "border-transparent hover:text-foreground",
+  );
+
   return (
     <button
       ref={triggerRef}
@@ -166,14 +209,7 @@ export function TabsTrigger({
       disabled={disabled}
       onClick={() => setValue(value)}
       onKeyDown={onKeyDown}
-      className={cn(
-        "inline-flex items-center justify-center gap-2 whitespace-nowrap rounded-md px-3 py-1.5 text-sm font-medium transition-all",
-        "disabled:pointer-events-none disabled:opacity-50",
-        active
-          ? "bg-background text-foreground shadow-soft"
-          : "hover:text-foreground",
-        className,
-      )}
+      className={cn(variant === "underline" ? underlineCls : pillCls, className)}
       {...props}
     >
       {children}

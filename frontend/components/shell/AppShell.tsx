@@ -12,11 +12,11 @@ interface AppShellProps {
 
 export function AppShell({ children, breadcrumbs }: AppShellProps) {
   return (
-    <div className="flex min-h-screen bg-background">
+    <div className="flex min-h-screen bg-muted/30">
       <SidebarNav />
       <div className="flex min-w-0 flex-1 flex-col">
         <Topbar breadcrumbs={breadcrumbs} />
-        <main className="flex-1 px-4 py-6 lg:px-8 lg:py-8">{children}</main>
+        <main className="flex-1 px-4 py-6 lg:px-10 lg:py-10">{children}</main>
       </div>
     </div>
   );

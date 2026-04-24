@@ -53,8 +53,20 @@ export function DocumentList({ documents, onDelete, pendingDeleteId }: Props) {
     );
   }
 
+  const totalBytes = documents.reduce((sum, d) => sum + d.size_bytes, 0);
+
   return (
     <Card className="overflow-hidden p-0">
+      <div className="flex items-center justify-between gap-2 border-b border-border px-5 py-3">
+        <div>
+          <h3 className="text-sm font-semibold tracking-tight">Documents</h3>
+          <p className="text-xs text-muted-foreground">
+            {documents.length}{" "}
+            {documents.length === 1 ? "file" : "files"} ·{" "}
+            {formatBytes(totalBytes)} total
+          </p>
+        </div>
+      </div>
       <Table>
         <TableHeader>
           <TableRow className="hover:bg-transparent">
@@ -75,20 +87,29 @@ export function DocumentList({ documents, onDelete, pendingDeleteId }: Props) {
             return (
               <TableRow key={doc.id}>
                 <TableCell>
-                  <div className="flex min-w-0 items-center gap-2">
-                    <FileIcon
-                      className="h-4 w-4 shrink-0 text-muted-foreground"
+                  <div className="flex min-w-0 items-center gap-2.5">
+                    <span
                       aria-hidden="true"
-                    />
+                      className="flex h-7 w-7 shrink-0 items-center justify-center rounded-md bg-primary/10 text-primary ring-1 ring-primary/10"
+                    >
+                      <FileIcon className="h-3.5 w-3.5" />
+                    </span>
                     <div className="min-w-0">
                       <div className="truncate font-medium text-foreground">
                         {doc.filename}
                       </div>
                       {doc.status === "failed" && doc.error_message ? (
-                        <div className="mt-0.5 truncate text-xs text-destructive">
+                        <div
+                          className="mt-0.5 truncate text-xs text-destructive"
+                          title={doc.error_message}
+                        >
                           {doc.error_message}
                         </div>
-                      ) : null}
+                      ) : (
+                        <div className="mt-0.5 truncate text-xs text-muted-foreground">
+                          {doc.mime_type || "Document"}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </TableCell>

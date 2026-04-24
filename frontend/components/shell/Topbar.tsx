@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { DealRoomLogo } from "@/components/branding/DealRoomLogo";
 import { useLogout, useUser } from "@/lib/auth";
 
 import {
@@ -14,12 +15,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "../ui/dropdown-menu";
-import {
-  ChevronDownIcon,
-  LogOutIcon,
-  SparklesIcon,
-  UserIcon,
-} from "../icons";
+import { ChevronDownIcon, LogOutIcon, UserIcon } from "../icons";
 import { toast } from "../ui/toaster";
 
 interface TopbarProps {
@@ -43,16 +39,16 @@ export function Topbar({ breadcrumbs }: TopbarProps) {
     }
   };
 
+  const userInitial = user?.email?.trim().charAt(0).toUpperCase() ?? "?";
+
   return (
-    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border bg-background/95 px-4 backdrop-blur-sm lg:px-6">
+    <header className="sticky top-0 z-30 flex h-14 items-center gap-4 border-b border-border bg-background/80 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/70 lg:px-8">
       <Link
         href="/deal-rooms"
-        className="flex items-center gap-2 font-semibold tracking-tight lg:hidden"
+        aria-label="Deal Room AI — Home"
+        className="flex items-center lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md"
       >
-        <span className="flex h-7 w-7 items-center justify-center rounded-md bg-primary text-primary-foreground">
-          <SparklesIcon className="h-4 w-4" />
-        </span>
-        Deal Room AI
+        <DealRoomLogo />
       </Link>
 
       <div className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">
@@ -62,30 +58,30 @@ export function Topbar({ breadcrumbs }: TopbarProps) {
       <DropdownMenu>
         <DropdownMenuTrigger
           aria-label="Account menu"
-          className="inline-flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium text-foreground hover:bg-accent"
+          className="inline-flex h-9 items-center gap-2 rounded-full border border-border bg-card pl-1 pr-2.5 text-sm font-medium text-foreground shadow-soft transition-colors hover:bg-accent"
         >
           <span
             aria-hidden="true"
-            className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-muted-foreground"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-gradient-to-br from-indigo-500 to-indigo-600 text-xs font-semibold text-white"
           >
-            <UserIcon className="h-4 w-4" />
+            {user ? userInitial : <UserIcon className="h-3.5 w-3.5" />}
           </span>
           <span className="hidden max-w-[12rem] truncate sm:inline">
             {user?.email ?? "Account"}
           </span>
           <ChevronDownIcon
-            className="h-4 w-4 text-muted-foreground"
+            className="h-3.5 w-3.5 text-muted-foreground"
             aria-hidden="true"
           />
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end" className="w-56">
+        <DropdownMenuContent align="end" className="w-60">
           <DropdownMenuLabel>Signed in</DropdownMenuLabel>
           <div className="truncate px-2.5 pb-1.5 text-xs text-muted-foreground">
             {user?.email ?? "—"}
           </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={onLogout} disabled={logout.isPending}>
-            <LogOutIcon className="h-4 w-4" />
+            <LogOutIcon className="h-4 w-4" aria-hidden="true" />
             {logout.isPending ? "Signing out…" : "Sign out"}
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -104,7 +100,10 @@ export function Breadcrumbs({ items }: BreadcrumbsProps) {
       {items.map((item, idx) => {
         const isLast = idx === items.length - 1;
         return (
-          <span key={`${item.label}-${idx}`} className="flex min-w-0 items-center gap-1.5">
+          <span
+            key={`${item.label}-${idx}`}
+            className="flex min-w-0 items-center gap-1.5"
+          >
             {item.href && !isLast ? (
               <Link
                 href={item.href}
