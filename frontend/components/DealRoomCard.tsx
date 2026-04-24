@@ -32,7 +32,10 @@ export function DealRoomCard({ dealRoom, onDelete, deleting }: Props) {
   return (
     <Card className="group relative flex flex-col gap-4 transition-colors hover:border-primary/40 hover:shadow-elevated">
       <div className="flex items-start gap-3">
-        <span className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary">
+        <span
+          aria-hidden="true"
+          className="flex h-10 w-10 items-center justify-center rounded-md bg-primary/10 text-primary"
+        >
           <Building2Icon className="h-5 w-5" />
         </span>
         <div className="min-w-0 flex-1">
@@ -57,7 +60,7 @@ export function DealRoomCard({ dealRoom, onDelete, deleting }: Props) {
             aria-label="Deal room actions"
             className="flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground opacity-0 transition-opacity hover:bg-accent hover:text-foreground focus-visible:opacity-100 group-hover:opacity-100 data-[state=open]:opacity-100"
           >
-            <MoreHorizontalIcon className="h-4 w-4" />
+            <MoreHorizontalIcon className="h-4 w-4" aria-hidden="true" />
           </DropdownMenuTrigger>
           <DropdownMenuContent>
             <DropdownMenuItem

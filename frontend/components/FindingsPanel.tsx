@@ -1,75 +1,172 @@
 "use client";
 
 /**
- * FindingsPanel — Person C step 4.
+ * FindingsPanel — Person C, merged Analyze + Findings surface.
  *
- * Read-only, presentational surface that renders the most recent /analyze
- * outputs (summary + risks) with their evidence citations. No network
- * calls, no mutations, no state.
+ * A single polished panel with two responsive cards (Summary, Risks). Each
+ * card owns its own Generate / Regenerate button that calls the existing
+ * analyze mutation with `"summary"` or `"risks"`. Results live in component
+ * state on the parent page (ephemeral, non-persisted) — same contract as
+ * before; no API changes.
  *
- * Design notes:
- * - This panel does NOT call /analyze itself. The two AnalyzeResponse
- *   values are produced by the existing analyzeMutation wired on the
- *   parent page; this panel only renders what the parent already has.
- *   Keeping it display-only means Person A's later ADK-driven findings
- *   producer can reuse the same AnalyzeResponse shape (or a sibling
- *   endpoint that returns the same shape) without a redesign here.
- * - Evidence links: we reuse the existing <AnswerCard> + <CitationList>
- *   path used by AskPanel and (now-removed) AnalyzePanel inline results,
- *   so the citation style is identical across the page. Clickable links
- *   to a document viewer are intentionally out of scope until the doc
- *   viewer lands in a later Person C step.
+ * The older action-only `AnalyzePanel` is no longer rendered by the page,
+ * but the file is kept in-tree to avoid breaking any lingering imports.
  */
 
-import type { AnalyzeResponse } from "@/lib/types";
+import { Loader2Icon, RefreshCwIcon, SparklesIcon } from "@/components/icons";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import type { AnalyzeResponse, AnalyzeTask } from "@/lib/types";
 
-import { AnswerCard } from "./AnswerCard";
-import { Card } from "./ui";
+import { CitationList } from "./CitationList";
 
 interface Props {
+  hasDocuments: boolean;
+  pendingTask: AnalyzeTask | null;
   latestSummary: AnalyzeResponse | null;
   latestRisks: AnalyzeResponse | null;
+  onAnalyze: (task: AnalyzeTask) => Promise<AnalyzeResponse>;
 }
 
-export function FindingsPanel({ latestSummary, latestRisks }: Props) {
-  const hasAny = latestSummary !== null || latestRisks !== null;
+export function FindingsPanel({
+  hasDocuments,
+  pendingTask,
+  latestSummary,
+  latestRisks,
+  onAnalyze,
+}: Props) {
+  return (
+    <div className="grid gap-4 lg:grid-cols-2">
+      <FindingCard
+        task="summary"
+        title="Summary"
+        description="A concise, grounded overview of the uploaded documents."
+        hasDocuments={hasDocuments}
+        pendingTask={pendingTask}
+        result={latestSummary}
+        onAnalyze={onAnalyze}
+      />
+      <FindingCard
+        task="risks"
+        title="Risks"
+        description="Flagged concerns and red flags surfaced from the documents."
+        hasDocuments={hasDocuments}
+        pendingTask={pendingTask}
+        result={latestRisks}
+        onAnalyze={onAnalyze}
+      />
+    </div>
+  );
+}
+
+interface FindingCardProps {
+  task: AnalyzeTask;
+  title: string;
+  description: string;
+  hasDocuments: boolean;
+  pendingTask: AnalyzeTask | null;
+  result: AnalyzeResponse | null;
+  onAnalyze: (task: AnalyzeTask) => Promise<AnalyzeResponse>;
+}
+
+function FindingCard({
+  task,
+  title,
+  description,
+  hasDocuments,
+  pendingTask,
+  result,
+  onAnalyze,
+}: FindingCardProps) {
+  const isPending = pendingTask === task;
+  const anyPending = pendingTask !== null;
+  const disabled = !hasDocuments || anyPending;
+  const hasResult = result !== null;
+
+  const handleClick = async () => {
+    try {
+      await onAnalyze(task);
+    } catch {
+      /* toast handled in mutation onError */
+    }
+  };
 
   return (
-    <Card className="flex flex-col gap-3">
-      <div>
-        <h3 className="text-sm font-semibold">Findings</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Grounded summaries and flagged risks from the uploaded documents,
-          with source citations.
-        </p>
+    <Card className="flex flex-col gap-4">
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <div className="flex items-center gap-2">
+            <SparklesIcon
+              className="h-4 w-4 text-primary"
+              aria-hidden="true"
+            />
+            <h3 className="text-sm font-semibold">{title}</h3>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">{description}</p>
+        </div>
+        <Button
+          type="button"
+          variant={hasResult ? "outline" : "primary"}
+          size="sm"
+          onClick={handleClick}
+          disabled={disabled}
+          aria-label={
+            hasResult ? `Regenerate ${title}` : `Generate ${title}`
+          }
+        >
+          {isPending ? (
+            <>
+              <Loader2Icon
+                className="h-3.5 w-3.5 animate-spin"
+                aria-hidden="true"
+              />
+              {hasResult ? "Regenerating…" : "Generating…"}
+            </>
+          ) : hasResult ? (
+            <>
+              <RefreshCwIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              Regenerate
+            </>
+          ) : (
+            <>
+              <SparklesIcon className="h-3.5 w-3.5" aria-hidden="true" />
+              Generate
+            </>
+          )}
+        </Button>
       </div>
 
-      {!hasAny ? (
-        <p className="text-xs text-slate-400">
-          Run <em>Generate summary</em> or <em>Identify risks</em> above to
-          populate findings here.
-        </p>
-      ) : null}
-
-      {latestSummary ? (
-        <AnswerCard
-          title="Summary"
-          answer={latestSummary.answer}
-          citations={latestSummary.citations}
-          model={latestSummary.model}
-          chunksUsed={latestSummary.chunks_used}
-        />
-      ) : null}
-
-      {latestRisks ? (
-        <AnswerCard
-          title="Risks"
-          answer={latestRisks.answer}
-          citations={latestRisks.citations}
-          model={latestRisks.model}
-          chunksUsed={latestRisks.chunks_used}
-        />
-      ) : null}
+      <div className="min-h-[80px]">
+        {result ? (
+          <div className="space-y-3">
+            <p className="whitespace-pre-wrap text-sm text-foreground">
+              {result.answer}
+            </p>
+            <CitationList citations={result.citations} />
+            <div className="flex flex-wrap items-center gap-2 pt-1 text-xs text-muted-foreground">
+              <Badge variant="outline" className="font-normal normal-case">
+                model · {result.model}
+              </Badge>
+              <Badge variant="outline" className="font-normal normal-case">
+                {result.chunks_used} chunk
+                {result.chunks_used === 1 ? "" : "s"} used
+              </Badge>
+            </div>
+          </div>
+        ) : isPending ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2Icon className="h-4 w-4 animate-spin" aria-hidden="true" />
+            {hasResult ? "Regenerating…" : "Generating…"}
+          </div>
+        ) : (
+          <p className="text-sm text-muted-foreground">
+            {hasDocuments
+              ? "Nothing generated yet. Click Generate to produce a grounded result."
+              : "Upload a document first to enable analysis."}
+          </p>
+        )}
+      </div>
     </Card>
   );
 }

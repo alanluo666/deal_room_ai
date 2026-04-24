@@ -1,5 +1,6 @@
 "use client";
 
+import { Badge } from "@/components/ui/badge";
 import type { Citation } from "@/lib/types";
 
 import { CitationList } from "./CitationList";
@@ -19,26 +20,25 @@ export function AnswerCard({
   chunksUsed,
   title,
 }: Props) {
-  const chunkSuffix =
-    typeof chunksUsed === "number"
-      ? ` · ${chunksUsed} chunk${chunksUsed === 1 ? "" : "s"} used`
-      : "";
-
   return (
-    <div className="rounded-md border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-800 dark:bg-slate-950">
+    <div className="rounded-md border border-border bg-muted/30 p-3 text-sm">
       {title ? (
-        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-slate-500 dark:text-slate-400">
+        <p className="mb-2 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           {title}
         </p>
       ) : null}
-      <p className="whitespace-pre-wrap text-slate-800 dark:text-slate-100">
-        {answer}
-      </p>
+      <p className="whitespace-pre-wrap text-foreground">{answer}</p>
       <CitationList citations={citations} />
-      <p className="mt-2 text-xs text-slate-400">
-        model: {model}
-        {chunkSuffix}
-      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-1.5">
+        <Badge variant="outline" className="font-normal normal-case">
+          model · {model}
+        </Badge>
+        {typeof chunksUsed === "number" ? (
+          <Badge variant="outline" className="font-normal normal-case">
+            {chunksUsed} chunk{chunksUsed === 1 ? "" : "s"} used
+          </Badge>
+        ) : null}
+      </div>
     </div>
   );
 }

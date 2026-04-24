@@ -34,12 +34,15 @@ export function SidebarNav() {
         href="/deal-rooms"
         className="flex h-14 items-center gap-2 border-b border-border px-5 font-semibold tracking-tight"
       >
-        <span className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-soft">
+        <span
+          aria-hidden="true"
+          className="flex h-8 w-8 items-center justify-center rounded-md bg-primary text-primary-foreground shadow-soft"
+        >
           <SparklesIcon className="h-4 w-4" />
         </span>
         Deal Room AI
       </Link>
-      <nav className="flex flex-col gap-0.5 p-3">
+      <nav aria-label="Primary" className="flex flex-col gap-0.5 p-3">
         {PRIMARY_NAV.map((item) => {
           const Icon = item.icon;
           const active =
@@ -58,7 +61,7 @@ export function SidebarNav() {
                 )}
                 title="Coming soon"
               >
-                <Icon className="h-4 w-4" />
+                <Icon className="h-4 w-4" aria-hidden="true" />
                 {item.label}
                 <span className="ml-auto rounded-full bg-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-muted-foreground">
                   Soon
@@ -78,7 +81,7 @@ export function SidebarNav() {
                   : "text-muted-foreground hover:bg-accent/60 hover:text-foreground",
               )}
             >
-              <Icon className="h-4 w-4" />
+              <Icon className="h-4 w-4" aria-hidden="true" />
               {item.label}
             </Link>
           );

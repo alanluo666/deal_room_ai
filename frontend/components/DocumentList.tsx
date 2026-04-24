@@ -1,10 +1,20 @@
 "use client";
 
-import clsx from "clsx";
-
-import type { DealRoomDocument } from "@/lib/types";
-
-import { Button, Card } from "./ui";
+import { FileIcon, InboxIcon, Loader2Icon, TrashIcon } from "@/components/icons";
+import { EmptyState } from "@/components/shell/EmptyState";
+import { Badge, type BadgeVariant } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
+import type { DealRoomDocument, DocumentStatus } from "@/lib/types";
+import { cn, formatRelativeTime } from "@/lib/utils";
 
 interface Props {
   documents: DealRoomDocument[];
@@ -12,79 +22,131 @@ interface Props {
   pendingDeleteId?: number | null;
 }
 
-const STATUS_CLASSES: Record<DealRoomDocument["status"], string> = {
-  ready: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/40 dark:text-emerald-200",
-  processing: "bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-200",
-  pending: "bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300",
-  failed: "bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-200",
+const STATUS_BADGE: Record<
+  DocumentStatus,
+  { variant: BadgeVariant; label: string }
+> = {
+  ready: { variant: "success", label: "Ready" },
+  processing: { variant: "warning", label: "Processing" },
+  pending: { variant: "secondary", label: "Pending" },
+  failed: { variant: "destructive", label: "Failed" },
 };
 
 function formatBytes(bytes: number) {
   if (!bytes) return "0 B";
   const units = ["B", "KB", "MB", "GB"];
-  const i = Math.min(units.length - 1, Math.floor(Math.log(bytes) / Math.log(1024)));
+  const i = Math.min(
+    units.length - 1,
+    Math.floor(Math.log(bytes) / Math.log(1024)),
+  );
   return `${(bytes / Math.pow(1024, i)).toFixed(i === 0 ? 0 : 1)} ${units[i]}`;
 }
 
 export function DocumentList({ documents, onDelete, pendingDeleteId }: Props) {
   if (documents.length === 0) {
     return (
-      <Card>
-        <p className="text-sm text-slate-600 dark:text-slate-400">
-          No documents yet. Upload a PDF, DOCX, or TXT to index it for this
-          deal room.
-        </p>
-      </Card>
+      <EmptyState
+        icon={InboxIcon}
+        title="No documents yet"
+        description="Upload a PDF, DOCX, or TXT to index it for this deal room."
+      />
     );
   }
 
   return (
-    <Card className="p-0">
-      <ul className="divide-y divide-slate-200 dark:divide-slate-800">
-        {documents.map((doc) => (
-          <li
-            key={doc.id}
-            className="flex flex-col gap-2 p-4 sm:flex-row sm:items-center sm:justify-between"
-          >
-            <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2">
-                <span className="truncate text-sm font-medium">
-                  {doc.filename}
-                </span>
-                <span
-                  className={clsx(
-                    "inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium capitalize",
-                    STATUS_CLASSES[doc.status],
-                  )}
+    <Card className="overflow-hidden p-0">
+      <Table>
+        <TableHeader>
+          <TableRow className="hover:bg-transparent">
+            <TableHead className="w-[40%]">Name</TableHead>
+            <TableHead className="w-[110px]">Status</TableHead>
+            <TableHead className="w-[100px]">Size</TableHead>
+            <TableHead className="w-[90px]">Chunks</TableHead>
+            <TableHead className="w-[160px]">Uploaded</TableHead>
+            <TableHead className="w-[90px] text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {documents.map((doc) => {
+            const badge = STATUS_BADGE[doc.status];
+            const isDeleting = pendingDeleteId === doc.id;
+            const isBusy =
+              doc.status === "pending" || doc.status === "processing";
+            return (
+              <TableRow key={doc.id}>
+                <TableCell>
+                  <div className="flex min-w-0 items-center gap-2">
+                    <FileIcon
+                      className="h-4 w-4 shrink-0 text-muted-foreground"
+                      aria-hidden="true"
+                    />
+                    <div className="min-w-0">
+                      <div className="truncate font-medium text-foreground">
+                        {doc.filename}
+                      </div>
+                      {doc.status === "failed" && doc.error_message ? (
+                        <div className="mt-0.5 truncate text-xs text-destructive">
+                          {doc.error_message}
+                        </div>
+                      ) : null}
+                    </div>
+                  </div>
+                </TableCell>
+                <TableCell>
+                  <Badge
+                    variant={badge.variant}
+                    className={cn(
+                      "font-normal normal-case",
+                      isBusy && "animate-pulse-soft",
+                    )}
+                  >
+                    {isBusy ? (
+                      <Loader2Icon
+                        className="h-3 w-3 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : null}
+                    {badge.label}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {formatBytes(doc.size_bytes)}
+                </TableCell>
+                <TableCell className="text-muted-foreground">
+                  {doc.chunk_count}
+                </TableCell>
+                <TableCell
+                  className="text-muted-foreground"
+                  title={new Date(doc.created_at).toLocaleString()}
                 >
-                  {doc.status}
-                </span>
-              </div>
-              <div className="mt-1 text-xs text-slate-500 dark:text-slate-400">
-                {formatBytes(doc.size_bytes)} ·{" "}
-                {doc.chunk_count > 0
-                  ? `${doc.chunk_count} chunk${doc.chunk_count === 1 ? "" : "s"}`
-                  : "0 chunks"}{" "}
-                · uploaded {new Date(doc.created_at).toLocaleString()}
-              </div>
-              {doc.status === "failed" && doc.error_message ? (
-                <p className="mt-1 text-xs text-red-600 dark:text-red-400">
-                  {doc.error_message}
-                </p>
-              ) : null}
-            </div>
-            <Button
-              type="button"
-              variant="ghost"
-              className="!px-2 !py-1 text-red-600 hover:bg-red-50 dark:hover:bg-red-950"
-              disabled={pendingDeleteId === doc.id}
-              onClick={() => onDelete(doc.id)}
-            >
-              {pendingDeleteId === doc.id ? "Removing..." : "Remove"}
-            </Button>
-          </li>
-        ))}
-      </ul>
+                  {formatRelativeTime(new Date(doc.created_at))}
+                </TableCell>
+                <TableCell className="text-right">
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:bg-destructive/10 hover:text-destructive"
+                    aria-label={`Remove ${doc.filename}`}
+                    disabled={isDeleting}
+                    onClick={() => onDelete(doc.id)}
+                  >
+                    {isDeleting ? (
+                      <Loader2Icon
+                        className="h-4 w-4 animate-spin"
+                        aria-hidden="true"
+                      />
+                    ) : (
+                      <TrashIcon className="h-4 w-4" aria-hidden="true" />
+                    )}
+                    <span className="sr-only">Remove document</span>
+                  </Button>
+                </TableCell>
+              </TableRow>
+            );
+          })}
+        </TableBody>
+      </Table>
     </Card>
   );
 }

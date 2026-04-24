@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 
 import { useLogout, useUser } from "@/lib/auth";
 
-import { Button } from "../ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -61,14 +60,23 @@ export function Topbar({ breadcrumbs }: TopbarProps) {
       </div>
 
       <DropdownMenu>
-        <DropdownMenuTrigger className="inline-flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium text-foreground hover:bg-accent">
-          <span className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-muted-foreground">
+        <DropdownMenuTrigger
+          aria-label="Account menu"
+          className="inline-flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium text-foreground hover:bg-accent"
+        >
+          <span
+            aria-hidden="true"
+            className="flex h-7 w-7 items-center justify-center rounded-full bg-muted text-muted-foreground"
+          >
             <UserIcon className="h-4 w-4" />
           </span>
           <span className="hidden max-w-[12rem] truncate sm:inline">
             {user?.email ?? "Account"}
           </span>
-          <ChevronDownIcon className="h-4 w-4 text-muted-foreground" />
+          <ChevronDownIcon
+            className="h-4 w-4 text-muted-foreground"
+            aria-hidden="true"
+          />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-56">
           <DropdownMenuLabel>Signed in</DropdownMenuLabel>

@@ -15,13 +15,15 @@ export function CitationList({ citations }: Props) {
       {citations.map((cit, idx) => (
         <li
           key={`${cit.document_id}:${cit.chunk_index}:${idx}`}
-          className="rounded border border-slate-200 bg-white p-2 dark:border-slate-800 dark:bg-slate-900"
+          className="rounded border border-border bg-background p-2"
         >
-          <div className="flex flex-wrap items-center gap-1 text-slate-600 dark:text-slate-300">
+          <div className="flex flex-wrap items-center gap-1 text-foreground">
             <span className="font-medium">{cit.filename}</span>
-            <span className="text-slate-400">· chunk #{cit.chunk_index}</span>
+            <span className="text-muted-foreground">
+              · chunk #{cit.chunk_index}
+            </span>
           </div>
-          <p className="mt-1 text-slate-700 dark:text-slate-200">
+          <p className="mt-1 text-muted-foreground">
             &ldquo;{cit.snippet}&rdquo;
           </p>
         </li>

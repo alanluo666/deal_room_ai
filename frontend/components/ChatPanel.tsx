@@ -1,32 +1,46 @@
 "use client";
 
 /**
- * ChatPanel — Person C step 3.
- *
- * Thin, self-contained conversation UI that sits next to AskPanel on the deal
- * room page. Design notes:
+ * ChatPanel — multi-turn grounded chat for a deal room.
  *
  * - State is local. The component owns `turns`; the parent only provides an
- *   `onSend(messages)` prop and wires it to POST /deal-rooms/{id}/chat with
- *   React Query. Same prop-shape convention as AskPanel / AnalyzePanel.
- * - Each submit sends the full cumulative history. The backend currently
- *   only consumes the last user turn, but Person A's ADK agent will use the
- *   whole history later; keeping the wire format stable avoids a frontend
- *   edit when that swap happens.
- * - Local-dev safety: when the server's most recent reply carries
- *   `model === "local-dev-stub"` we show a muted banner explaining the
- *   placeholder state. The panel makes no other assumption about whether a
- *   real LLM answered — it renders `response.message.content` verbatim.
- * - Error handling is intentionally minimal: the inline error appears,
- *   the turn stays visible, the conversation is never wiped.
+ *   `onSend(messages)` prop and wires it to POST /deal-rooms/{id}/chat.
+ * - Each submit sends the full cumulative history so that future ADK-driven
+ *   server behavior can consume history without a frontend change.
+ * - Local-dev safety: when the most recent assistant reply reports
+ *   `model === "local-dev-stub"` we surface a muted banner.
+ * - Accessibility: the message list is marked `aria-live="polite"` so screen
+ *   readers announce new assistant turns. We avoid server rendering any
+ *   dynamic timestamp or locale-formatted text to sidestep hydration
+ *   mismatches (see toaster.tsx for the same reasoning).
  */
 
-import { useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+  type KeyboardEvent,
+} from "react";
 
+import {
+  BotIcon,
+  Loader2Icon,
+  SendIcon,
+  SparklesIcon,
+  TrashIcon,
+  UserIcon,
+} from "@/components/icons";
+import { EmptyState } from "@/components/shell/EmptyState";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { FieldError } from "@/components/ui/field-error";
 import type { ChatMessage, ChatResponse, Citation } from "@/lib/types";
+import { cn } from "@/lib/utils";
 
 import { CitationList } from "./CitationList";
-import { Button, Card, FieldError } from "./ui";
 
 const LOCAL_DEV_STUB_MODEL = "local-dev-stub";
 const MAX_CONTENT_LENGTH = 4000;
@@ -50,8 +64,19 @@ export function ChatPanel({ onSend, hasDocuments }: Props) {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const lastAssistant = [...turns].reverse().find((t) => t.role === "assistant");
+  const scrollRef = useRef<HTMLDivElement | null>(null);
+
+  const lastAssistant = useMemo(
+    () => [...turns].reverse().find((t) => t.role === "assistant"),
+    [turns],
+  );
   const isStubMode = lastAssistant?.model === LOCAL_DEV_STUB_MODEL;
+
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    el.scrollTop = el.scrollHeight;
+  }, [turns, isSending]);
 
   const submit = async () => {
     setError(null);
@@ -90,77 +115,161 @@ export function ChatPanel({ onSend, hasDocuments }: Props) {
     }
   };
 
-  const onSubmitForm = (event: React.FormEvent) => {
+  const onSubmitForm = (event: FormEvent) => {
     event.preventDefault();
     if (!isSending) void submit();
   };
 
-  const onTextareaKeyDown = (
-    event: React.KeyboardEvent<HTMLTextAreaElement>,
-  ) => {
+  const onTextareaKeyDown = (event: KeyboardEvent<HTMLTextAreaElement>) => {
     if (event.key === "Enter" && !event.shiftKey) {
       event.preventDefault();
       if (!isSending) void submit();
     }
   };
 
+  const clearConversation = () => {
+    if (isSending) return;
+    setTurns([]);
+    setError(null);
+  };
+
+  const isEmpty = turns.length === 0;
+
   return (
-    <Card className="flex flex-col gap-3">
-      <div>
-        <h3 className="text-sm font-semibold">Chat with this deal room</h3>
-        <p className="text-xs text-slate-500 dark:text-slate-400">
-          Multi-turn conversation grounded in the uploaded documents. Citations
-          appear below each assistant reply.
-        </p>
+    <Card className="flex flex-col gap-3 p-0">
+      <div className="flex items-start justify-between gap-3 border-b border-border px-5 py-4">
+        <div>
+          <div className="flex items-center gap-2">
+            <BotIcon className="h-4 w-4 text-primary" aria-hidden="true" />
+            <h3 className="text-sm font-semibold">Chat with this deal room</h3>
+          </div>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Multi-turn conversation grounded in the uploaded documents.
+            Citations appear below each assistant reply.
+          </p>
+        </div>
+        <Button
+          type="button"
+          variant="ghost"
+          size="sm"
+          onClick={clearConversation}
+          disabled={isEmpty || isSending}
+          aria-label="Clear conversation"
+        >
+          <TrashIcon className="h-3.5 w-3.5" aria-hidden="true" />
+          Clear
+        </Button>
       </div>
 
       {isStubMode ? (
-        <div className="rounded-md border border-amber-300 bg-amber-50 p-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950 dark:text-amber-200">
-          <strong>Local-dev stub mode.</strong> OpenAI is not configured on the
-          server, so replies are placeholder text — not grounded answers from
-          your documents. Set <code>OPENAI_API_KEY</code> and restart the API to
-          get real answers.
+        <div className="mx-5 rounded-md border border-warning/50 bg-warning/10 px-3 py-2 text-xs text-warning-foreground">
+          <strong className="font-medium">Local-dev stub mode.</strong>{" "}
+          OpenAI is not configured on the server, so replies are placeholder
+          text. Set <code>OPENAI_API_KEY</code> and restart the API to get
+          real answers.
         </div>
       ) : null}
 
-      {turns.length > 0 ? (
-        <ol className="flex flex-col gap-3">
-          {turns.map((turn, idx) => (
-            <li
-              key={idx}
-              className={
-                turn.role === "user"
-                  ? "max-w-[85%] self-end rounded-md bg-slate-900 px-3 py-2 text-sm text-white dark:bg-slate-200 dark:text-slate-900"
-                  : "w-full self-start rounded-md border border-slate-200 bg-slate-50 p-3 text-sm dark:border-slate-800 dark:bg-slate-950"
+      <div
+        ref={scrollRef}
+        role="log"
+        aria-live="polite"
+        aria-relevant="additions"
+        className="h-[420px] overflow-y-auto px-5 pb-2"
+      >
+        {isEmpty ? (
+          <div className="flex h-full items-center justify-center py-6">
+            <EmptyState
+              icon={BotIcon}
+              title={
+                hasDocuments
+                  ? "Start a conversation"
+                  : "No documents yet"
               }
-            >
-              <p className="whitespace-pre-wrap">{turn.content}</p>
-              {turn.role === "assistant" && turn.citations ? (
-                <CitationList citations={turn.citations} />
-              ) : null}
-              {turn.role === "assistant" && turn.model ? (
-                <p className="mt-2 text-xs text-slate-400">
-                  model: {turn.model}
-                  {typeof turn.chunksUsed === "number"
-                    ? ` · ${turn.chunksUsed} chunk${
-                        turn.chunksUsed === 1 ? "" : "s"
-                      } used`
-                    : ""}
-                </p>
-              ) : null}
-            </li>
-          ))}
-          {isSending ? (
-            <li className="self-start text-xs text-slate-500">
-              Assistant is thinking…
-            </li>
-          ) : null}
-        </ol>
-      ) : null}
+              description={
+                hasDocuments
+                  ? "Ask a question below to kick off a multi-turn chat."
+                  : "Upload a document first, then start chatting."
+              }
+              className="border-0 bg-transparent"
+            />
+          </div>
+        ) : (
+          <ol className="flex flex-col gap-3 py-4">
+            {turns.map((turn, idx) => (
+              <li
+                key={idx}
+                className={cn(
+                  "flex gap-3",
+                  turn.role === "user" ? "justify-end" : "justify-start",
+                )}
+              >
+                {turn.role === "assistant" ? (
+                  <span
+                    aria-hidden="true"
+                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary"
+                  >
+                    <SparklesIcon className="h-4 w-4" />
+                  </span>
+                ) : null}
+                <div
+                  className={cn(
+                    "max-w-[85%] rounded-lg px-3 py-2 text-sm",
+                    turn.role === "user"
+                      ? "bg-primary text-primary-foreground"
+                      : "border border-border bg-muted/40 text-foreground",
+                  )}
+                >
+                  <p className="whitespace-pre-wrap">{turn.content}</p>
+                  {turn.role === "assistant" && turn.citations ? (
+                    <CitationList citations={turn.citations} />
+                  ) : null}
+                  {turn.role === "assistant" && turn.model ? (
+                    <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                      <Badge
+                        variant="outline"
+                        className="font-normal normal-case"
+                      >
+                        model · {turn.model}
+                      </Badge>
+                      {typeof turn.chunksUsed === "number" ? (
+                        <Badge
+                          variant="outline"
+                          className="font-normal normal-case"
+                        >
+                          {turn.chunksUsed} chunk
+                          {turn.chunksUsed === 1 ? "" : "s"} used
+                        </Badge>
+                      ) : null}
+                    </div>
+                  ) : null}
+                </div>
+                {turn.role === "user" ? (
+                  <span
+                    aria-hidden="true"
+                    className="mt-0.5 flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-muted text-muted-foreground"
+                  >
+                    <UserIcon className="h-4 w-4" />
+                  </span>
+                ) : null}
+              </li>
+            ))}
+            {isSending ? (
+              <li className="flex items-center gap-2 text-xs text-muted-foreground">
+                <Loader2Icon className="h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                Assistant is thinking…
+              </li>
+            ) : null}
+          </ol>
+        )}
+      </div>
 
-      <form className="flex flex-col gap-2" onSubmit={onSubmitForm}>
+      <form
+        className="flex flex-col gap-2 border-t border-border bg-background/60 px-5 py-3"
+        onSubmit={onSubmitForm}
+      >
         <textarea
-          className="min-h-24 w-full resize-y rounded-md border border-slate-300 bg-white px-3 py-2 text-sm shadow-sm placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-900"
+          className="min-h-[72px] w-full resize-y rounded-md border border-input bg-background px-3 py-2 text-sm shadow-sm placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 focus:ring-offset-background"
           value={draft}
           onChange={(event) => {
             setError(null);
@@ -174,17 +283,29 @@ export function ChatPanel({ onSend, hasDocuments }: Props) {
           }
           maxLength={MAX_CONTENT_LENGTH}
           disabled={isSending}
+          aria-label="Chat message"
         />
         <FieldError>{error}</FieldError>
         <div className="flex items-center justify-between gap-2">
-          <span className="text-xs text-slate-400">
+          <span className="text-xs text-muted-foreground">
             {draft.length}/{MAX_CONTENT_LENGTH}
           </span>
           <Button
             type="submit"
             disabled={isSending || draft.trim().length === 0}
+            aria-label="Send message"
           >
-            {isSending ? "Sending…" : "Send"}
+            {isSending ? (
+              <>
+                <Loader2Icon className="h-4 w-4 animate-spin" aria-hidden="true" />
+                Sending…
+              </>
+            ) : (
+              <>
+                <SendIcon className="h-4 w-4" aria-hidden="true" />
+                Send
+              </>
+            )}
           </Button>
         </div>
       </form>

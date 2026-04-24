@@ -90,6 +90,10 @@ const config: Config = {
           "0%, 100%": { opacity: "1" },
           "50%": { opacity: "0.5" },
         },
+        indeterminate: {
+          "0%": { transform: "translateX(-100%)" },
+          "100%": { transform: "translateX(400%)" },
+        },
       },
       animation: {
         "fade-in": "fade-in 150ms ease-out",
@@ -97,6 +101,7 @@ const config: Config = {
         "zoom-in": "zoom-in 150ms ease-out",
         "slide-up": "slide-up 180ms ease-out",
         "pulse-soft": "pulse-soft 1.8s ease-in-out infinite",
+        indeterminate: "indeterminate 1.4s linear infinite",
       },
     },
   },
