@@ -48,7 +48,11 @@ export function Topbar({ breadcrumbs }: TopbarProps) {
         aria-label="Deal Room AI — Home"
         className="flex items-center lg:hidden focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring rounded-md"
       >
-        <DealRoomLogo />
+        <DealRoomLogo
+          className="inline-flex items-center gap-2.5"
+          iconClassName="h-7 w-7 shrink-0"
+          wordmarkClassName="font-semibold tracking-tight text-slate-950 text-base leading-none"
+        />
       </Link>
 
       <div className="flex min-w-0 flex-1 items-center gap-2 text-sm text-muted-foreground">

@@ -1,214 +1,187 @@
 "use client";
 
 /**
- * DealRoomLogo — original brand mark for Deal Room AI.
+ * DealRoomLogo — brand mark for Deal Room AI.
  *
  * Concept
  * -------
- * A rounded-square "secure room" frame enclosing three horizontal stacked
- * bars of decreasing length. The bars simultaneously read as:
- *   1. structured deal documents (diligence, data room),
- *   2. the right-curved negative space of a "D" (Deal), and
- *   3. layered confidence — long → short — which subtly evokes
- *      analysis / synthesis.
+ * An abstract open-room / open-book frame rendered as two mirrored
+ * panels joined by a central spine. The left panel shows three stacked
+ * document lines (diligence materials); the right panel shows two
+ * ascending analytics bars (AI-driven analysis). The outline uses an
+ * indigo-to-blue linear gradient (`#4F46E5 → #2563EB → #3B82F6`), the
+ * document lines render in slate-900, and the analytics bars pick up
+ * the same blue family as the stroke. The white panel fills keep the
+ * mark crisp on both light canvases and dark navy backgrounds.
  *
- * A small accent dot in the upper-right of the frame stands in for an
- * AI signal / intelligence indicator without resorting to a robot or a
- * generic sparkle. The mark keeps its indigo gradient across tones; only
- * the wordmark color adapts so the same icon works on both the dark
- * sidebar and the light main canvas.
+ * Public API is unchanged from the previous component so existing
+ * imports keep working:
  *
- * The SVG is self-contained, inline, and dependency-free. A unique
- * gradient id is generated per instance via `useId` so multiple logos
- * can render on the same page without id collisions.
+ *   <DealRoomLogo />                        // full, light tone
+ *   <DealRoomLogo tone="dark" />            // full, white wordmark
+ *   <DealRoomLogo variant="icon" />         // icon only
+ *   <DealRoomLogo className="h-10 w-10" />  // pass sizing through
  *
  * Accessibility
  * -------------
- * - When `ariaLabel` is provided the SVG becomes a meaningful image
- *   (`role="img" aria-label="…"`).
- * - Otherwise the SVG is marked `aria-hidden`. In the "full" variant the
- *   visible wordmark already carries the brand name to screen readers.
- *
- * Previewing
- * ----------
- *   import { DealRoomLogo } from "@/components/branding/DealRoomLogo";
- *   <DealRoomLogo />                              // full, light tone
- *   <DealRoomLogo variant="icon" />               // icon only
- *   <DealRoomLogo tone="dark" />                  // dark-sidebar wordmark
- *   <DealRoomLogo className="h-10 gap-3" />       // responsive sizing
- *   <DealRoomLogo variant="icon" ariaLabel="Deal Room AI home" />
+ * `ariaLabel` defaults to "Deal Room AI". In the icon variant it is
+ * applied to the SVG as `role="img" aria-label="…"`. In the full
+ * variant the visible wordmark carries the brand name and the SVG
+ * stays decorative (`aria-hidden`).
  */
 
-import { useId } from "react";
+import * as React from "react";
 
-import { cn } from "@/lib/utils";
-
-type Tone = "light" | "dark";
-type Variant = "full" | "icon";
-
-interface DealRoomLogoProps {
-  /** "full" = icon + wordmark, "icon" = icon only. */
-  variant?: Variant;
-  /** "light" = wordmark slate-900 (on light canvas),
-   *  "dark"  = wordmark slate-100 (on dark sidebar). */
-  tone?: Tone;
-  /** Sizing / spacing pass-through. Prefer `h-* w-*` for the icon and
-   *  `gap-*`/`text-*` when styling the full lockup. */
+type DealRoomLogoProps = {
+  variant?: "full" | "icon";
+  tone?: "light" | "dark";
   className?: string;
-  /** If provided, the SVG becomes a meaningful image with this label.
-   *  If omitted, the mark is decorative. */
+  iconClassName?: string;
+  wordmarkClassName?: string;
   ariaLabel?: string;
+};
+
+function DealRoomMark({
+  className,
+  ariaLabel,
+}: {
+  className?: string;
+  ariaLabel?: string;
+}) {
+  const gradientId = React.useId();
+
+  return (
+    <svg
+      viewBox="0 0 64 64"
+      className={className}
+      role={ariaLabel ? "img" : undefined}
+      aria-label={ariaLabel}
+      aria-hidden={ariaLabel ? undefined : true}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      focusable="false"
+    >
+      <defs>
+        <linearGradient
+          id={gradientId}
+          x1="8"
+          y1="10"
+          x2="56"
+          y2="54"
+          gradientUnits="userSpaceOnUse"
+        >
+          <stop offset="0%" stopColor="#4F46E5" />
+          <stop offset="55%" stopColor="#2563EB" />
+          <stop offset="100%" stopColor="#3B82F6" />
+        </linearGradient>
+      </defs>
+
+      {/* Outer "open room" / open-book frame */}
+      <path
+        d="M10 18.5L28 12V52L10 46.5V18.5Z"
+        fill="white"
+        stroke={`url(#${gradientId})`}
+        strokeWidth="3.5"
+        strokeLinejoin="round"
+      />
+      <path
+        d="M36 12L54 18.5V46.5L36 52V12Z"
+        fill="white"
+        stroke={`url(#${gradientId})`}
+        strokeWidth="3.5"
+        strokeLinejoin="round"
+      />
+
+      {/* Center spine */}
+      <path
+        d="M32 11V53"
+        stroke={`url(#${gradientId})`}
+        strokeWidth="3.5"
+        strokeLinecap="round"
+      />
+
+      {/* Left document lines */}
+      <rect
+        x="16.5"
+        y="24"
+        width="11.5"
+        height="3.5"
+        rx="1.25"
+        fill="#1E293B"
+      />
+      <rect
+        x="16.5"
+        y="31"
+        width="11.5"
+        height="3.5"
+        rx="1.25"
+        fill="#1E293B"
+        opacity="0.9"
+      />
+      <rect
+        x="16.5"
+        y="38"
+        width="8"
+        height="3.5"
+        rx="1.25"
+        fill="#1E293B"
+        opacity="0.8"
+      />
+
+      {/* Right analytics bars */}
+      <rect x="40.5" y="39" width="4.5" height="9" rx="1.5" fill="#3B82F6" />
+      <rect
+        x="47"
+        y="31.5"
+        width="4.5"
+        height="16.5"
+        rx="1.5"
+        fill="#2563EB"
+      />
+    </svg>
+  );
 }
 
 export function DealRoomLogo({
   variant = "full",
   tone = "light",
   className,
-  ariaLabel,
+  iconClassName,
+  wordmarkClassName,
+  ariaLabel = "Deal Room AI",
 }: DealRoomLogoProps) {
-  const wordmarkColor = tone === "dark" ? "text-slate-100" : "text-slate-900";
-  const aiChipStyles =
-    tone === "dark"
-      ? "bg-white/10 text-indigo-200 ring-1 ring-inset ring-white/10"
-      : "bg-primary/10 text-primary ring-1 ring-inset ring-primary/15";
+  const isDark = tone === "dark";
+
+  const roomText = isDark ? "text-white" : "text-slate-950";
+  const aiText = "text-blue-600";
+  const defaultWordmark = "font-semibold tracking-tight";
 
   if (variant === "icon") {
     return (
       <DealRoomMark
-        className={cn("h-7 w-7", className)}
+        className={iconClassName ?? className ?? "h-9 w-9"}
         ariaLabel={ariaLabel}
       />
     );
   }
 
   return (
-    <span
-      className={cn("inline-flex items-center gap-2.5", className)}
+    <div
+      className={className ?? "inline-flex items-center gap-3"}
       aria-label={ariaLabel}
-      role={ariaLabel ? "img" : undefined}
     >
-      <DealRoomMark className="h-7 w-7 shrink-0" />
-      <span
-        className={cn(
-          "inline-flex items-baseline gap-1.5 text-[15px] font-semibold leading-none tracking-tight",
-          wordmarkColor,
-        )}
+      <DealRoomMark className={iconClassName ?? "h-10 w-10 shrink-0"} />
+      <div
+        className={
+          wordmarkClassName ??
+          `${defaultWordmark} ${roomText} text-2xl leading-none`
+        }
       >
-        <span>Deal Room</span>
-        <span
-          className={cn(
-            "rounded-[4px] px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-[0.14em]",
-            aiChipStyles,
-          )}
-        >
-          AI
-        </span>
-      </span>
-    </span>
+        <span>Deal Room </span>
+        <span className={aiText}>AI</span>
+      </div>
+    </div>
   );
 }
 
-interface DealRoomMarkProps {
-  className?: string;
-  ariaLabel?: string;
-}
-
-/**
- * Pure icon mark. 32×32 viewBox, crisp from favicon (16px) through hero
- * sizes (64–80px). Consumers control size via Tailwind `h-*`/`w-*`.
- */
-function DealRoomMark({ className, ariaLabel }: DealRoomMarkProps) {
-  const uid = useId().replace(/:/g, "");
-  const gradId = `drai-grad-${uid}`;
-  const glossId = `drai-gloss-${uid}`;
-
-  const labelled = Boolean(ariaLabel);
-
-  return (
-    <svg
-      viewBox="0 0 32 32"
-      xmlns="http://www.w3.org/2000/svg"
-      className={className}
-      role={labelled ? "img" : undefined}
-      aria-label={ariaLabel}
-      aria-hidden={labelled ? undefined : true}
-      focusable="false"
-    >
-      <defs>
-        <linearGradient
-          id={gradId}
-          x1="4"
-          y1="2"
-          x2="28"
-          y2="30"
-          gradientUnits="userSpaceOnUse"
-        >
-          {/* indigo-400 → indigo-600 */}
-          <stop offset="0%" stopColor="#818CF8" />
-          <stop offset="100%" stopColor="#4F46E5" />
-        </linearGradient>
-        <linearGradient
-          id={glossId}
-          x1="6"
-          y1="2"
-          x2="6"
-          y2="16"
-          gradientUnits="userSpaceOnUse"
-        >
-          <stop offset="0%" stopColor="#ffffff" stopOpacity="0.18" />
-          <stop offset="100%" stopColor="#ffffff" stopOpacity="0" />
-        </linearGradient>
-      </defs>
-
-      {/* Secure "room" frame */}
-      <rect
-        x="2"
-        y="2"
-        width="28"
-        height="28"
-        rx="7"
-        fill={`url(#${gradId})`}
-      />
-      {/* Subtle top gloss for depth */}
-      <rect
-        x="2"
-        y="2"
-        width="28"
-        height="28"
-        rx="7"
-        fill={`url(#${glossId})`}
-      />
-
-      {/* Structured document lines — decreasing length suggests D/analysis */}
-      <rect
-        x="8"
-        y="10.5"
-        width="14"
-        height="2.25"
-        rx="1.125"
-        fill="#ffffff"
-      />
-      <rect
-        x="8"
-        y="15.25"
-        width="11"
-        height="2.25"
-        rx="1.125"
-        fill="#ffffff"
-        fillOpacity="0.82"
-      />
-      <rect
-        x="8"
-        y="20"
-        width="7.5"
-        height="2.25"
-        rx="1.125"
-        fill="#ffffff"
-        fillOpacity="0.58"
-      />
-
-      {/* AI signal dot */}
-      <circle cx="24" cy="9" r="1.6" fill="#ffffff" />
-    </svg>
-  );
-}
+export default DealRoomLogo;

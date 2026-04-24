@@ -42,7 +42,12 @@ export function SidebarNav() {
         aria-label="Deal Room AI — Home"
         className="flex h-14 items-center border-b border-slate-800/80 px-5 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
       >
-        <DealRoomLogo tone="dark" />
+        <DealRoomLogo
+          tone="dark"
+          className="inline-flex items-center gap-2.5"
+          iconClassName="h-7 w-7 shrink-0"
+          wordmarkClassName="font-semibold tracking-tight text-white text-[15px] leading-none"
+        />
       </Link>
 
       <div className="px-3 pt-5">
