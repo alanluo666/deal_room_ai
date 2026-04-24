@@ -8,14 +8,45 @@ import { use, useState } from "react";
 import { AnalyzePanel } from "@/components/AnalyzePanel";
 import { AskPanel } from "@/components/AskPanel";
 import { ChatPanel } from "@/components/ChatPanel";
-import { DeleteDealRoomButton } from "@/components/DeleteDealRoomButton";
 import { DocumentList } from "@/components/DocumentList";
 import { DocumentUploader } from "@/components/DocumentUploader";
 import { FindingsPanel } from "@/components/FindingsPanel";
 import { QuestionHistory } from "@/components/QuestionHistory";
-import { Button, Card } from "@/components/ui";
+import {
+  AlertTriangleIcon,
+  ArrowLeftIcon,
+  BotIcon,
+  FileTextIcon,
+  MessageCircleIcon,
+  MoreHorizontalIcon,
+  SparklesIcon,
+  TrashIcon,
+} from "@/components/icons";
+import {
+  AnswerCardSkeleton,
+  DealRoomHeaderSkeleton,
+  DocumentListSkeleton,
+} from "@/components/shell/Skeletons";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { toast } from "@/components/ui/toaster";
 import { apiFetch } from "@/lib/api";
-import { useLogout, useUser } from "@/lib/auth";
 import type {
   AnalyzeResponse,
   AnalyzeTask,
@@ -26,6 +57,7 @@ import type {
   DealRoomDocument,
   QuestionRead,
 } from "@/lib/types";
+import { formatRelativeTime } from "@/lib/utils";
 
 export default function DealRoomDetailPage({
   params,
@@ -37,8 +69,9 @@ export default function DealRoomDetailPage({
 
   const router = useRouter();
   const qc = useQueryClient();
-  const { data: user } = useUser();
-  const logout = useLogout();
+
+  const [tab, setTab] = useState("documents");
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const roomQuery = useQuery<DealRoom>({
     queryKey: ["deal-room", dealRoomId],
@@ -62,10 +95,15 @@ export default function DealRoomDetailPage({
         { method: "POST", body },
       );
     },
-    onSuccess: () =>
+    onSuccess: (doc) => {
       qc.invalidateQueries({
         queryKey: ["deal-room", dealRoomId, "documents"],
-      }),
+      });
+      toast.success("Document uploaded", { description: doc.filename });
+    },
+    onError: (error) => {
+      toast.error("Upload failed", { description: error.message });
+    },
   });
 
   const deleteMutation = useMutation<void, Error, number>({
@@ -74,10 +112,14 @@ export default function DealRoomDetailPage({
         `/deal-rooms/${dealRoomId}/documents/${documentId}`,
         { method: "DELETE" },
       ),
-    onSuccess: () =>
+    onSuccess: () => {
       qc.invalidateQueries({
         queryKey: ["deal-room", dealRoomId, "documents"],
-      }),
+      });
+    },
+    onError: (error) => {
+      toast.error("Could not remove document", { description: error.message });
+    },
   });
 
   const questionsQuery = useQuery<QuestionRead[]>({
@@ -105,6 +147,9 @@ export default function DealRoomDetailPage({
         queryKey: ["deal-room", dealRoomId, "questions"],
       });
     },
+    onError: (error) => {
+      toast.error("Ask failed", { description: error.message });
+    },
   });
 
   const analyzeMutation = useMutation<AnalyzeResponse, Error, AnalyzeTask>({
@@ -117,10 +162,14 @@ export default function DealRoomDetailPage({
       if (task === "summary") setLatestSummary(data);
       else if (task === "risks") setLatestRisks(data);
     },
+    onError: (error, task) => {
+      toast.error(
+        task === "summary" ? "Summary failed" : "Risk analysis failed",
+        { description: error.message },
+      );
+    },
   });
 
-  // Chat lives purely in the ChatPanel's local state; we intentionally do not
-  // persist turns to the /questions table here. That contract belongs to /ask.
   const chatMutation = useMutation<ChatResponse, Error, ChatMessage[]>({
     mutationFn: (messages) =>
       apiFetch<ChatResponse>(`/deal-rooms/${dealRoomId}/chat`, {
@@ -139,152 +188,211 @@ export default function DealRoomDetailPage({
       apiFetch<void>(`/deal-rooms/${dealRoomId}`, { method: "DELETE" }),
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["deal-rooms"] });
+      toast.success("Deal room deleted");
       router.push("/deal-rooms");
       router.refresh();
     },
+    onError: (error) => {
+      toast.error("Could not delete deal room", { description: error.message });
+    },
   });
-
-  const onLogout = async () => {
-    await logout.mutateAsync();
-    router.push("/login");
-    router.refresh();
-  };
 
   if (!Number.isFinite(dealRoomId)) {
     return (
-      <main className="mx-auto max-w-4xl p-6">
-        <Card>
-          <p className="text-sm text-red-600">Invalid deal room id.</p>
-        </Card>
-      </main>
+      <Card>
+        <p className="text-sm text-destructive">Invalid deal room id.</p>
+      </Card>
     );
   }
 
-  return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 p-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="min-w-0">
-          <Link
-            href="/deal-rooms"
-            className="text-sm text-slate-500 hover:underline dark:text-slate-400"
-          >
-            &larr; All deal rooms
-          </Link>
-          <h1 className="mt-1 truncate text-2xl font-semibold">
-            {roomQuery.data?.name ?? "Deal room"}
-          </h1>
-          {roomQuery.data?.target_company ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Target: {roomQuery.data.target_company}
-            </p>
-          ) : null}
-          {user ? (
-            <p className="text-xs text-slate-400 dark:text-slate-500">
-              Signed in as {user.email}
-            </p>
-          ) : null}
-        </div>
-        <div className="flex flex-col items-end gap-2">
-          <Button variant="secondary" onClick={onLogout}>
-            Sign out
-          </Button>
-          {roomQuery.data ? (
-            <DeleteDealRoomButton
-              isDeleting={deleteRoomMutation.isPending}
-              errorMessage={
-                deleteRoomMutation.isError
-                  ? deleteRoomMutation.error.message
-                  : null
-              }
-              onConfirm={async () => {
-                await deleteRoomMutation.mutateAsync();
-              }}
-            />
-          ) : null}
-        </div>
-      </header>
+  const room = roomQuery.data;
+  const documents = documentsQuery.data ?? [];
+  const hasDocuments = documents.length > 0;
 
-      {roomQuery.isLoading ? (
-        <p className="text-sm text-slate-500">Loading deal room...</p>
-      ) : null}
+  return (
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+      <div>
+        <Link
+          href="/deal-rooms"
+          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+        >
+          <ArrowLeftIcon className="h-3.5 w-3.5" />
+          All deal rooms
+        </Link>
+      </div>
+
+      {roomQuery.isLoading ? <DealRoomHeaderSkeleton /> : null}
 
       {roomQuery.isError ? (
-        <Card>
-          <p className="text-sm text-red-600">
-            Could not load this deal room. It may have been deleted or you
-            may not have access.
-          </p>
+        <Card className="flex items-start gap-3 border-destructive/30 bg-destructive/5">
+          <AlertTriangleIcon className="mt-0.5 h-5 w-5 text-destructive" />
+          <div>
+            <p className="text-sm font-medium text-destructive">
+              Could not load this deal room
+            </p>
+            <p className="text-sm text-muted-foreground">
+              It may have been deleted or you may not have access.
+            </p>
+          </div>
         </Card>
       ) : null}
 
-      {roomQuery.data ? (
+      {room ? (
         <>
-          <DocumentUploader
-            isUploading={uploadMutation.isPending}
-            onUpload={async (file) => {
-              await uploadMutation.mutateAsync(file);
-            }}
-          />
+          <Card className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-2xl font-semibold tracking-tight">
+                {room.name}
+              </h1>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {room.target_company ? (
+                  <Badge variant="outline" className="font-normal normal-case">
+                    Target · {room.target_company}
+                  </Badge>
+                ) : null}
+                <Badge variant="secondary" className="font-normal normal-case">
+                  {documents.length} {documents.length === 1 ? "document" : "documents"}
+                </Badge>
+                <Badge variant="secondary" className="font-normal normal-case">
+                  Created {formatRelativeTime(new Date(room.created_at))}
+                </Badge>
+              </div>
+            </div>
+            <DropdownMenu>
+              <DropdownMenuTrigger
+                aria-label="Deal room actions"
+                className="inline-flex h-9 w-9 items-center justify-center rounded-md border border-input text-muted-foreground hover:bg-accent hover:text-foreground"
+              >
+                <MoreHorizontalIcon className="h-4 w-4" />
+              </DropdownMenuTrigger>
+              <DropdownMenuContent>
+                <DropdownMenuItem
+                  destructive
+                  onClick={() => setDeleteOpen(true)}
+                >
+                  <TrashIcon className="h-4 w-4" />
+                  Delete deal room
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </Card>
 
-          {uploadMutation.isError ? (
-            <p className="text-sm text-red-600">
-              Upload failed: {uploadMutation.error.message}
-            </p>
-          ) : null}
+          <Tabs value={tab} onValueChange={setTab}>
+            <TabsList>
+              <TabsTrigger value="documents">
+                <FileTextIcon className="h-4 w-4" />
+                Documents
+              </TabsTrigger>
+              <TabsTrigger value="findings">
+                <SparklesIcon className="h-4 w-4" />
+                Findings
+              </TabsTrigger>
+              <TabsTrigger value="ask">
+                <MessageCircleIcon className="h-4 w-4" />
+                Ask
+              </TabsTrigger>
+              <TabsTrigger value="chat">
+                <BotIcon className="h-4 w-4" />
+                Chat
+              </TabsTrigger>
+            </TabsList>
 
-          {documentsQuery.isLoading ? (
-            <p className="text-sm text-slate-500">Loading documents...</p>
-          ) : null}
+            <TabsContent value="documents" className="flex flex-col gap-4">
+              <DocumentUploader
+                isUploading={uploadMutation.isPending}
+                onUpload={async (file) => {
+                  await uploadMutation.mutateAsync(file);
+                }}
+              />
+              {documentsQuery.isLoading ? (
+                <DocumentListSkeleton />
+              ) : (
+                <DocumentList
+                  documents={documents}
+                  onDelete={(documentId) => deleteMutation.mutate(documentId)}
+                  pendingDeleteId={
+                    deleteMutation.isPending
+                      ? (deleteMutation.variables ?? null)
+                      : null
+                  }
+                />
+              )}
+            </TabsContent>
 
-          {documentsQuery.data ? (
-            <DocumentList
-              documents={documentsQuery.data}
-              onDelete={(documentId) => deleteMutation.mutate(documentId)}
-              pendingDeleteId={
-                deleteMutation.isPending
-                  ? (deleteMutation.variables ?? null)
-                  : null
-              }
-            />
-          ) : null}
+            <TabsContent value="findings" className="flex flex-col gap-4">
+              <AnalyzePanel
+                hasDocuments={hasDocuments}
+                pendingTask={pendingAnalyzeTask}
+                errorMessage={null}
+                onAnalyze={async (task) => analyzeMutation.mutateAsync(task)}
+              />
+              {analyzeMutation.isPending && !latestSummary && !latestRisks ? (
+                <AnswerCardSkeleton />
+              ) : (
+                <FindingsPanel
+                  latestSummary={latestSummary}
+                  latestRisks={latestRisks}
+                />
+              )}
+            </TabsContent>
 
-          <AnalyzePanel
-            hasDocuments={(documentsQuery.data?.length ?? 0) > 0}
-            pendingTask={pendingAnalyzeTask}
-            errorMessage={
-              analyzeMutation.isError ? analyzeMutation.error.message : null
-            }
-            onAnalyze={async (task) => analyzeMutation.mutateAsync(task)}
-          />
+            <TabsContent value="ask" className="flex flex-col gap-4">
+              <AskPanel
+                isAsking={askMutation.isPending}
+                latestAnswer={latestAnswer}
+                hasDocuments={hasDocuments}
+                onAsk={async (question) => askMutation.mutateAsync(question)}
+              />
+              {questionsQuery.data ? (
+                <QuestionHistory questions={questionsQuery.data} />
+              ) : null}
+            </TabsContent>
 
-          <FindingsPanel
-            latestSummary={latestSummary}
-            latestRisks={latestRisks}
-          />
-
-          <AskPanel
-            isAsking={askMutation.isPending}
-            latestAnswer={latestAnswer}
-            hasDocuments={(documentsQuery.data?.length ?? 0) > 0}
-            onAsk={async (question) => askMutation.mutateAsync(question)}
-          />
-
-          {askMutation.isError ? (
-            <p className="text-sm text-red-600">
-              Ask failed: {askMutation.error.message}
-            </p>
-          ) : null}
-
-          <ChatPanel
-            hasDocuments={(documentsQuery.data?.length ?? 0) > 0}
-            onSend={async (messages) => chatMutation.mutateAsync(messages)}
-          />
-
-          {questionsQuery.data ? (
-            <QuestionHistory questions={questionsQuery.data} />
-          ) : null}
+            <TabsContent value="chat" className="flex flex-col gap-4">
+              <ChatPanel
+                hasDocuments={hasDocuments}
+                onSend={async (messages) => chatMutation.mutateAsync(messages)}
+              />
+            </TabsContent>
+          </Tabs>
         </>
       ) : null}
-    </main>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Delete this deal room?</DialogTitle>
+            <DialogDescription>
+              This permanently removes the deal room along with all uploaded
+              documents and question history. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="secondary"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleteRoomMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={async () => {
+                try {
+                  await deleteRoomMutation.mutateAsync();
+                } catch {
+                  /* toast handled in onError */
+                }
+              }}
+              disabled={deleteRoomMutation.isPending}
+            >
+              {deleteRoomMutation.isPending ? "Deleting…" : "Delete deal room"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

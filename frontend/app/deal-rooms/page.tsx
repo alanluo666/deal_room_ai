@@ -2,15 +2,26 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
 import { z } from "zod";
 
 import { DealRoomCard } from "@/components/DealRoomCard";
-import { Button, Card, FieldError, Input, Label } from "@/components/ui";
+import { Building2Icon, PlusIcon, SearchIcon } from "@/components/icons";
+import { EmptyState } from "@/components/shell/EmptyState";
+import { DealRoomGridSkeleton } from "@/components/shell/Skeletons";
+import { Button, FieldError, Input, Label } from "@/components/ui";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import { toast } from "@/components/ui/toaster";
 import { apiFetch } from "@/lib/api";
-import { useLogout, useUser } from "@/lib/auth";
+import { useUser } from "@/lib/auth";
 import type { DealRoom, DealRoomCreateInput } from "@/lib/types";
 
 const createSchema = z.object({
@@ -24,16 +35,12 @@ const createSchema = z.object({
 
 type CreateValues = z.infer<typeof createSchema>;
 
-// Toolbar state lives purely on the client. No backend /deal-rooms query
-// params change; the full list is fetched once and filtered/sorted in memory.
 type SortOrder = "newest" | "oldest" | "name-asc";
 
 export default function DealRoomsPage() {
-  const router = useRouter();
   const { data: user } = useUser();
-  const logout = useLogout();
   const qc = useQueryClient();
-  const [showForm, setShowForm] = useState(false);
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [search, setSearch] = useState("");
   const [sortOrder, setSortOrder] = useState<SortOrder>("newest");
 
@@ -48,13 +55,29 @@ export default function DealRoomsPage() {
         method: "POST",
         body: JSON.stringify(input),
       }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["deal-rooms"] }),
+    onSuccess: (room) => {
+      qc.invalidateQueries({ queryKey: ["deal-rooms"] });
+      toast.success("Deal room created", { description: room.name });
+    },
+    onError: (error: Error) => {
+      toast.error("Could not create deal room", {
+        description: error.message,
+      });
+    },
   });
 
   const deleteMutation = useMutation({
     mutationFn: (id: number) =>
       apiFetch<void>(`/deal-rooms/${id}`, { method: "DELETE" }),
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["deal-rooms"] }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["deal-rooms"] });
+      toast.success("Deal room deleted");
+    },
+    onError: (error: Error) => {
+      toast.error("Could not delete deal room", {
+        description: error.message,
+      });
+    },
   });
 
   const visibleRooms = useMemo(() => {
@@ -81,55 +104,157 @@ export default function DealRoomsPage() {
     return sorted;
   }, [listQuery.data, search, sortOrder]);
 
+  const form = useForm<CreateValues>({ resolver: zodResolver(createSchema) });
   const {
     register,
     handleSubmit,
     reset,
     formState: { errors, isSubmitting },
-  } = useForm<CreateValues>({ resolver: zodResolver(createSchema) });
+  } = form;
+
+  useEffect(() => {
+    if (!dialogOpen) reset();
+  }, [dialogOpen, reset]);
 
   const onCreate = async (values: CreateValues) => {
     await createMutation.mutateAsync(values);
-    reset();
-    setShowForm(false);
+    setDialogOpen(false);
   };
 
-  const onLogout = async () => {
-    await logout.mutateAsync();
-    router.push("/login");
-    router.refresh();
-  };
+  const total = listQuery.data?.length ?? 0;
+  const shown = visibleRooms.length;
+  const filtering = search.trim().length > 0 && shown !== total;
 
   return (
-    <main className="mx-auto flex min-h-screen max-w-4xl flex-col gap-6 p-6">
-      <header className="flex items-center justify-between">
+    <div className="mx-auto flex w-full max-w-6xl flex-col gap-6">
+      <header className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
         <div>
-          <h1 className="text-2xl font-semibold">Deal Rooms</h1>
-          {user ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              Signed in as {user.email}
-            </p>
-          ) : null}
+          <h1 className="text-2xl font-semibold tracking-tight">Deal rooms</h1>
+          <p className="text-sm text-muted-foreground">
+            {user
+              ? `Signed in as ${user.email}. Workspaces where you organize diligence materials and ask grounded questions.`
+              : "Workspaces where you organize diligence materials and ask grounded questions."}
+          </p>
         </div>
-        <div className="flex gap-2">
-          <Button onClick={() => setShowForm((v) => !v)}>
-            {showForm ? "Cancel" : "New deal room"}
-          </Button>
-          <Button variant="secondary" onClick={onLogout}>
-            Sign out
-          </Button>
-        </div>
+        <Button onClick={() => setDialogOpen(true)}>
+          <PlusIcon />
+          New deal room
+        </Button>
       </header>
 
-      {showForm ? (
-        <Card>
+      {listQuery.data && listQuery.data.length > 0 ? (
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <SearchIcon className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              type="search"
+              placeholder="Search deal rooms by name or target company"
+              value={search}
+              onChange={(event) => setSearch(event.target.value)}
+              aria-label="Search deal rooms"
+              className="pl-9"
+            />
+          </div>
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <span className="shrink-0">Sort</span>
+            <select
+              value={sortOrder}
+              onChange={(event) =>
+                setSortOrder(event.target.value as SortOrder)
+              }
+              className="h-10 rounded-md border border-input bg-background px-3 text-sm shadow-soft focus:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              aria-label="Sort deal rooms"
+            >
+              <option value="newest">Newest first</option>
+              <option value="oldest">Oldest first</option>
+              <option value="name-asc">Name A–Z</option>
+            </select>
+          </label>
+        </div>
+      ) : null}
+
+      {listQuery.data && listQuery.data.length > 0 ? (
+        <p className="-mt-2 text-xs text-muted-foreground">
+          {filtering
+            ? `Showing ${shown} of ${total} ${total === 1 ? "deal room" : "deal rooms"}`
+            : `${total} ${total === 1 ? "deal room" : "deal rooms"}`}
+        </p>
+      ) : null}
+
+      {listQuery.isLoading ? <DealRoomGridSkeleton /> : null}
+
+      {listQuery.isError ? (
+        <EmptyState
+          icon={Building2Icon}
+          title="Could not load deal rooms"
+          description="Something went wrong fetching your workspaces. Try refreshing."
+          action={
+            <Button variant="secondary" onClick={() => listQuery.refetch()}>
+              Retry
+            </Button>
+          }
+        />
+      ) : null}
+
+      {listQuery.data && listQuery.data.length === 0 ? (
+        <EmptyState
+          icon={Building2Icon}
+          title="No deal rooms yet"
+          description="Create your first deal room to upload diligence documents and ask grounded questions."
+          action={
+            <Button onClick={() => setDialogOpen(true)}>
+              <PlusIcon />
+              Create deal room
+            </Button>
+          }
+        />
+      ) : null}
+
+      {listQuery.data && visibleRooms.length === 0 && total > 0 ? (
+        <EmptyState
+          icon={SearchIcon}
+          title="No matches"
+          description={`No deal rooms match "${search}".`}
+          action={
+            <Button variant="secondary" onClick={() => setSearch("")}>
+              Clear search
+            </Button>
+          }
+        />
+      ) : null}
+
+      {visibleRooms.length > 0 ? (
+        <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {visibleRooms.map((room) => (
+            <DealRoomCard
+              key={room.id}
+              dealRoom={room}
+              onDelete={(id) => deleteMutation.mutate(id)}
+              deleting={
+                deleteMutation.isPending &&
+                deleteMutation.variables === room.id
+              }
+            />
+          ))}
+        </div>
+      ) : null}
+
+      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>New deal room</DialogTitle>
+            <DialogDescription>
+              A deal room scopes a set of documents, citations, and chat
+              sessions to a single diligence effort.
+            </DialogDescription>
+          </DialogHeader>
           <form
-            className="flex flex-col gap-3"
+            className="flex flex-col gap-3 pt-4"
             onSubmit={handleSubmit(onCreate)}
           >
             <div className="flex flex-col gap-1">
               <Label htmlFor="name">Name</Label>
-              <Input id="name" {...register("name")} />
+              <Input id="name" data-autofocus {...register("name")} />
               <FieldError>{errors.name?.message}</FieldError>
             </div>
             <div className="flex flex-col gap-1">
@@ -137,95 +262,22 @@ export default function DealRoomsPage() {
               <Input id="target_company" {...register("target_company")} />
               <FieldError>{errors.target_company?.message}</FieldError>
             </div>
-            <div className="flex justify-end">
-              <Button type="submit" disabled={isSubmitting}>
-                {isSubmitting ? "Creating..." : "Create deal room"}
-              </Button>
-            </div>
-          </form>
-        </Card>
-      ) : null}
-
-      {listQuery.isLoading ? (
-        <p className="text-sm text-slate-500">Loading deal rooms...</p>
-      ) : null}
-
-      {listQuery.isError ? (
-        <p className="text-sm text-red-600">
-          Could not load deal rooms. Try refreshing.
-        </p>
-      ) : null}
-
-      {listQuery.data && listQuery.data.length === 0 ? (
-        <Card>
-          <p className="text-sm text-slate-600 dark:text-slate-400">
-            You do not have any deal rooms yet. Click &ldquo;New deal
-            room&rdquo; to create your first one.
-          </p>
-        </Card>
-      ) : null}
-
-      {listQuery.data && listQuery.data.length > 0 ? (
-        <>
-          <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-3">
-            <Input
-              type="search"
-              placeholder="Search deal rooms"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              aria-label="Search deal rooms"
-              className="sm:flex-1"
-            />
-            <label className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-              <span className="shrink-0">Sort</span>
-              <select
-                value={sortOrder}
-                onChange={(event) =>
-                  setSortOrder(event.target.value as SortOrder)
-                }
-                className="rounded-md border border-slate-300 bg-white px-2 py-2 text-sm shadow-sm focus:outline-none focus:ring-2 focus:ring-slate-400 dark:border-slate-700 dark:bg-slate-900"
-                aria-label="Sort deal rooms"
+            <DialogFooter>
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={() => setDialogOpen(false)}
+                disabled={isSubmitting}
               >
-                <option value="newest">Newest first</option>
-                <option value="oldest">Oldest first</option>
-                <option value="name-asc">Name A–Z</option>
-              </select>
-            </label>
-          </div>
-
-          <p className="text-xs text-slate-500 dark:text-slate-400">
-            {(() => {
-              const total = listQuery.data.length;
-              const shown = visibleRooms.length;
-              const filtering = search.trim().length > 0 && shown !== total;
-              const noun = total === 1 ? "deal room" : "deal rooms";
-              return filtering
-                ? `Showing ${shown} of ${total} ${noun}`
-                : `${total} ${noun}`;
-            })()}
-          </p>
-
-          {visibleRooms.length === 0 ? (
-            <p className="text-sm text-slate-500 dark:text-slate-400">
-              No deal rooms match your search.
-            </p>
-          ) : (
-            <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-              {visibleRooms.map((room) => (
-                <DealRoomCard
-                  key={room.id}
-                  dealRoom={room}
-                  onDelete={(id) => deleteMutation.mutate(id)}
-                  deleting={
-                    deleteMutation.isPending &&
-                    deleteMutation.variables === room.id
-                  }
-                />
-              ))}
-            </div>
-          )}
-        </>
-      ) : null}
-    </main>
+                Cancel
+              </Button>
+              <Button type="submit" disabled={isSubmitting}>
+                {isSubmitting ? "Creating…" : "Create deal room"}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </div>
   );
 }

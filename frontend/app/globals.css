@@ -2,16 +2,107 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  color-scheme: light dark;
-}
+@layer base {
+  :root {
+    --background: 0 0% 100%;
+    --foreground: 222 47% 11%;
 
-body {
-  @apply bg-slate-50 text-slate-900 antialiased;
-}
+    --card: 0 0% 100%;
+    --card-foreground: 222 47% 11%;
 
-@media (prefers-color-scheme: dark) {
+    --popover: 0 0% 100%;
+    --popover-foreground: 222 47% 11%;
+
+    /* Indigo 600 */
+    --primary: 239 84% 58%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 40% 96%;
+    --secondary-foreground: 222 47% 11%;
+
+    --muted: 210 40% 96%;
+    --muted-foreground: 215 16% 47%;
+
+    --accent: 239 84% 96%;
+    --accent-foreground: 239 84% 35%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --success: 142 71% 45%;
+    --success-foreground: 0 0% 100%;
+
+    --warning: 38 92% 50%;
+    --warning-foreground: 26 90% 15%;
+
+    --border: 214 32% 91%;
+    --input: 214 32% 91%;
+    --ring: 239 84% 58%;
+
+    --radius: 0.625rem;
+
+    color-scheme: light;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --background: 222 47% 6%;
+      --foreground: 210 40% 98%;
+
+      --card: 222 47% 8%;
+      --card-foreground: 210 40% 98%;
+
+      --popover: 222 47% 8%;
+      --popover-foreground: 210 40% 98%;
+
+      --primary: 239 84% 67%;
+      --primary-foreground: 222 47% 11%;
+
+      --secondary: 217 33% 17%;
+      --secondary-foreground: 210 40% 98%;
+
+      --muted: 217 33% 17%;
+      --muted-foreground: 215 20% 65%;
+
+      --accent: 239 60% 20%;
+      --accent-foreground: 239 80% 85%;
+
+      --destructive: 0 63% 55%;
+      --destructive-foreground: 210 40% 98%;
+
+      --success: 142 60% 55%;
+      --success-foreground: 222 47% 11%;
+
+      --warning: 38 92% 60%;
+      --warning-foreground: 222 47% 11%;
+
+      --border: 217 33% 20%;
+      --input: 217 33% 20%;
+      --ring: 239 84% 67%;
+
+      color-scheme: dark;
+    }
+  }
+
+  * {
+    @apply border-border;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
   body {
-    @apply bg-slate-950 text-slate-100;
+    @apply bg-background text-foreground antialiased;
+    font-feature-settings: "rlig" 1, "calt" 1, "tnum" 1;
+  }
+
+  /* Friendlier focus ring across the app. */
+  :where(button, [role="button"], a, input, select, textarea, [tabindex]):focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+
+  ::selection {
+    @apply bg-primary/20 text-foreground;
   }
 }
