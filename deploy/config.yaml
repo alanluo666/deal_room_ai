@@ -1,0 +1,31 @@
+# Vertex AI deployment config — consumed by deploy/vertex_deploy.py
+# Replace placeholders with real values OR override via env vars at deploy time.
+
+project_id: ${GCP_PROJECT_ID}
+region: us-central1
+
+# Artifact Registry repo for the prediction container.
+artifact_registry:
+  repo: deal-room-ai
+  image: classifier
+  tag: ${IMAGE_TAG}    # CI sets this to the git SHA
+
+# Vertex AI Model Registry entry.
+model:
+  display_name: deal-room-doc-type-classifier
+  description: "Document-type classifier (TF-IDF + LogReg) for Deal Room AI ingestion."
+  serving_container:
+    predict_route: /predict
+    health_route: /health
+    ports: [8080]
+
+# Endpoint that serves the model.
+endpoint:
+  display_name: deal-room-doc-type-endpoint
+  traffic_split:
+    "0": 100         # 100% to the newly-deployed model
+
+deployed_model:
+  machine_type: n1-standard-2
+  min_replica_count: 1
+  max_replica_count: 3
