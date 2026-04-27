@@ -3,7 +3,4 @@ __pycache__/
 .ipynb_checkpoints/
 mlruns/
 mlflow.db
-<<<<<<< HEAD
-=======
 api/__pycache__/
->>>>>>> ded75868216a9e970b401cdf59816648482fbd7c

@@ -2,9 +2,5 @@ fastapi
 uvicorn
 pydantic
 mlflow
-<<<<<<< HEAD
-pandas
-=======
 python-dotenv
 openai
->>>>>>> ded75868216a9e970b401cdf59816648482fbd7c

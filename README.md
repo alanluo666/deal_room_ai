@@ -1,7 +1,3 @@
-<<<<<<< HEAD
-# deal_room_ai
-Document Review Workspace for Smaller Deal Teams — a collaborative SaaS platform for search funds, independent sponsors, boutique M&amp;A advisors, and small corp dev teams. The idea is to focus on the document-heavy part of diligence by bringing filings, contracts, and management transcripts into one workspace.
-=======
 # Deal Room AI
 
 Document Review Workspace for Smaller Deal Teams — a collaborative SaaS platform for search funds, independent sponsors, boutique M&A advisors, and small corp dev teams. The platform focuses on the document-heavy part of due diligence by bringing filings, contracts, and management transcripts into one workspace, powered by AI-driven analysis.
@@ -180,11 +176,18 @@ deal_room_ai/
 │   ├── schemas.py        # Pydantic request/response models
 │   ├── service.py        # OpenAI service for LLM inference
 │   └── tracking.py       # MLflow tracking manager
+├── classifier/           # Document-type classifier (training, eval, predict)
+├── deploy/               # Vertex AI deployment for the classifier
+├── ingestion/            # Offline batch ingestion orchestrator
+├── .github/workflows/    # ML pipeline CI + deploy-on-merge
 ├── .env.example           # Environment variable template
 ├── .gitignore
 ├── Dockerfile             # Container definition
 ├── MLFlow_Server_SetUp.ipynb  # Notebook to verify MLflow connectivity
+├── ML_PIPELINE.md         # ML pipeline + infra documentation
 ├── README.md
-└── requirements.txt
+├── requirements.txt
+└── requirements-ml.txt    # ML pipeline-only dependencies
 ```
->>>>>>> ded75868216a9e970b401cdf59816648482fbd7c
+
+See [ML_PIPELINE.md](ML_PIPELINE.md) for documentation on the document-type classifier, offline ingestion pipeline, Vertex AI deployment, and CI/CD.
