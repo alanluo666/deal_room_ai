@@ -293,6 +293,10 @@ deal_room_ai/
 │   └── vector_store.py          # VectorStore interface + ChromaVectorStore (upsert/delete/query)
 ├── alembic/                     # Alembic env + 0001_initial + 0002_documents + 0003_questions
 ├── alembic.ini
+├── classifier/                  # TF-IDF + LogReg doc-type classifier (train/eval/predict, MLflow-tracked)
+├── deploy/                      # Vertex AI custom-container deployment for the classifier
+├── ingestion/                   # Offline batch ingestion orchestrator (uses api.document_processing + api.vector_store)
+├── .github/workflows/           # ML pipeline CI + deploy-on-merge to Vertex AI
 ├── frontend/                    # Next.js 15 + TypeScript + Tailwind workspace
 │   ├── app/
 │   │   ├── (auth)/login         # /login page
@@ -316,16 +320,22 @@ deal_room_ai/
 │   └── middleware.ts            # Route protection for /deal-rooms/*
 ├── storage/                     # Bind-mounted per-deal-room uploads (gitignored)
 ├── tests/                       # pytest suite (auth, deal rooms, documents, questions, analyze, chat, probes, request_logging)
+├── test/
+│   └── pytest.py                # Functional-test stubs that ship with the ML pipeline scaffold
 ├── docs/CLOUD_RUN.md            # Reference-only walkthrough for Cloud Run deployment (no real deploy)
 ├── docs/samples/                # Synthetic PDF/DOCX/TXT samples used by DEMO.md
 ├── DEMO.md                      # 10-minute local walkthrough
+├── ML_PIPELINE.md               # ML pipeline + infra documentation (classifier, ingestion, Vertex, CI/CD)
 ├── docker-compose.yml           # api + postgres + chromadb (no MLflow service)
 ├── Dockerfile
 ├── MLFlow_Server_SetUp.ipynb
 ├── pyproject.toml
 ├── requirements.txt
+├── requirements-ml.txt          # ML pipeline-only dependencies (kept separate from the API image)
 └── .env.example
 ```
+
+See [`ML_PIPELINE.md`](./ML_PIPELINE.md) for the ML pipeline scaffold: classifier training with MLflow tracking, Vertex AI custom-container deployment, the offline ingestion pipeline, and ML CI/CD workflows.
 
 ## Milestone status
 

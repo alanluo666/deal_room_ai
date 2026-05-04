@@ -1,0 +1,52 @@
+# Lint + tests for the ML pipeline (classifier, deploy predictor, offline ingestion).
+# Runs on every PR that touches the relevant paths.
+
+name: ML pipeline CI
+
+on:
+  pull_request:
+    paths:
+      - "classifier/**"
+      - "ingestion/**"
+      - "deploy/**"
+      - "requirements-ml.txt"
+      - ".github/workflows/ml-ci.yml"
+  push:
+    branches: [main]
+    paths:
+      - "classifier/**"
+      - "ingestion/**"
+      - "deploy/**"
+      - "requirements-ml.txt"
+      - ".github/workflows/ml-ci.yml"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install ML deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ml.txt
+          pip install pytest ruff
+
+      - name: Lint
+        run: ruff check classifier ingestion deploy
+
+      - name: Smoke-train classifier on synthetic data
+        run: |
+          python -m classifier.train --synthetic --out /tmp/classifier_model.joblib
+
+      - name: Run tests
+        env:
+          # Tests must not hit the network; OpenAI / Chroma calls are mocked.
+          OPENAI_API_KEY: ""
+          MLFLOW_TRACKING_URI: ""
+        run: pytest -q

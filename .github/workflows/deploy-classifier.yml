@@ -1,0 +1,78 @@
+# Trains the classifier, builds the prediction container, pushes to Artifact
+# Registry, and deploys to a Vertex AI endpoint. Triggered on merge to main
+# when classifier/ or deploy/ changes — and manually via workflow_dispatch.
+
+name: Deploy classifier to Vertex AI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "classifier/**"
+      - "deploy/**"
+      - ".github/workflows/deploy-classifier.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write   # for Workload Identity Federation to GCP
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  GCP_REGION: us-central1
+  AR_REPO: deal-room-ai
+  IMAGE_NAME: classifier
+
+jobs:
+  train-build-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install training deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements-ml.txt
+
+      # ----- Train -----
+      # If you have real labeled data committed (or fetched from GCS), swap
+      # --synthetic for --data ./data/labels.csv before this workflow runs.
+      - name: Train classifier
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+          MLFLOW_TRACKING_URI: ${{ secrets.MLFLOW_TRACKING_URI }}
+          MLFLOW_EXPERIMENT_NAME: team-project
+        run: |
+          python -m classifier.train --synthetic --out classifier_model.joblib
+
+      # ----- Authenticate to GCP via Workload Identity Federation -----
+      - id: gcp-auth
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_DEPLOY_SA }}
+
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Configure Docker for Artifact Registry
+        run: gcloud auth configure-docker ${{ env.GCP_REGION }}-docker.pkg.dev --quiet
+
+      # ----- Build + push container -----
+      - name: Build & push image
+        run: |
+          IMAGE_URI="${{ env.GCP_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.AR_REPO }}/${{ env.IMAGE_NAME }}:${{ github.sha }}"
+          docker build -f deploy/Dockerfile.classifier -t "$IMAGE_URI" .
+          docker push "$IMAGE_URI"
+          echo "IMAGE_URI=$IMAGE_URI" >> "$GITHUB_ENV"
+
+      # ----- Deploy to Vertex AI -----
+      - name: Deploy to Vertex AI
+        env:
+          GCP_PROJECT_ID: ${{ env.GCP_PROJECT_ID }}
+          IMAGE_TAG: ${{ github.sha }}
+        run: python -m deploy.vertex_deploy --image-uri "$IMAGE_URI"
