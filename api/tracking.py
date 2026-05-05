@@ -1,17 +1,18 @@
-import os
 import time
 
 import mlflow
-from dotenv import load_dotenv
 
-load_dotenv()
+from api.config import settings
 
 
 class TrackingManager:
     def __init__(self) -> None:
-        self.tracking_uri = os.getenv("MLFLOW_TRACKING_URI", "")
-        self.experiment_name = os.getenv("MLFLOW_EXPERIMENT_NAME", "team-project")
-        self.enabled = bool(self.tracking_uri)
+        self.tracking_uri = settings.MLFLOW_TRACKING_URI
+        self.experiment_name = settings.MLFLOW_EXPERIMENT_NAME
+        # Dual gate: both the master switch AND a tracking URI must be set.
+        # Either alone leaves MLflow disabled (no client configured, no
+        # background connections) so local/offline mode stays the default.
+        self.enabled = bool(self.tracking_uri) and settings.ENABLE_MLFLOW
 
     def configure(self) -> None:
         if not self.enabled:

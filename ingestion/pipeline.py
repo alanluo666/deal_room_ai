@@ -16,13 +16,12 @@ DEPENDENCIES (call out before running):
   - Requires classifier_model.joblib in CWD (or set CLASSIFIER_MODEL_PATH).
   - Requires OPENAI_API_KEY for embeddings.
 
-ALIGNMENT TODO (Boston):
-  Boston's `Chunk` dataclass and `vector_store.upsert_chunks` do not yet carry
-  a `doc_type` metadata field. Until that lands, this orchestrator writes
-  doc_type by post-upserting metadata via the underlying Chroma collection.
-  Once Boston extends `Chunk` to include `doc_type` and threads it through
-  `ChromaVectorStore.upsert_chunks`, replace the _attach_doc_type call below
-  with a single in-place upsert.
+ALIGNMENT NOTE:
+  `api.vector_store.Chunk` now carries an optional `doc_type` field, and
+  `ChromaVectorStore.upsert_chunks` writes it into Chroma metadata when set.
+  This orchestrator therefore passes `doc_type` directly through
+  `build_chunks`; the previous `_attach_doc_type` private-collection
+  workaround has been removed.
 
 Usage:
   python -m ingestion.pipeline \\
@@ -46,8 +45,9 @@ from dotenv import load_dotenv
 from api.document_processing import (
     EmbeddingClient,
     build_chunks,
+    extract_text,
 )
-from api.vector_store import ChromaVectorStore, get_vector_store
+from api.vector_store import get_vector_store
 from classifier.predict import predict_doc_type
 
 load_dotenv()
@@ -72,40 +72,6 @@ def _resolve_mime(path: Path) -> str:
     return guessed
 
 
-def _attach_doc_type(
-    *, document_id: int, doc_type: str, store
-) -> None:
-    """Workaround until Boston extends Chunk with doc_type.
-
-    Reads back the chunks just upserted for this document, then re-upserts
-    them with doc_type added to metadata. Safe because Chroma upsert is
-    idempotent on (id, embedding) and we don't change the embedding.
-    """
-    if not isinstance(store, ChromaVectorStore):
-        log.warning("Vector store is not ChromaVectorStore — skipping doc_type backfill")
-        return
-
-    collection = store._collection  # noqa: SLF001 — intentional, see TODO above
-    existing = collection.get(
-        where={"document_id": document_id},
-        include=["metadatas", "documents", "embeddings"],
-    )
-    ids = existing.get("ids") or []
-    if not ids:
-        return
-    new_metas = []
-    for meta in existing.get("metadatas") or []:
-        meta = dict(meta or {})
-        meta["doc_type"] = doc_type
-        new_metas.append(meta)
-    collection.upsert(
-        ids=ids,
-        embeddings=existing.get("embeddings"),
-        documents=existing.get("documents"),
-        metadatas=new_metas,
-    )
-
-
 def _configure_mlflow() -> bool:
     uri = os.getenv("MLFLOW_TRACKING_URI", "")
     if not uri:
@@ -125,9 +91,20 @@ def ingest_file(
     document_id: int,
     doc_type: str | None = None,
 ) -> int:
-    """Chunk + embed + upsert one file. Returns chunk count."""
+    """Chunk + embed + upsert one file. Returns chunk count.
+
+    When ``doc_type`` is None, the trained classifier is invoked on a
+    truncated text sample taken before chunking, and the resolved label is
+    passed to ``build_chunks`` so every chunk carries it as Chroma metadata.
+    """
     mime_type = _resolve_mime(path)
     data = path.read_bytes()
+
+    if doc_type is None:
+        sample = extract_text(mime_type, data)[:4000]
+        resolved_type = predict_doc_type(sample) if sample.strip() else "other"
+    else:
+        resolved_type = doc_type
 
     embedder = EmbeddingClient()
     chunks = build_chunks(
@@ -137,6 +114,7 @@ def ingest_file(
         mime_type=mime_type,
         data=data,
         embedder=embedder,
+        doc_type=resolved_type,
     )
     if not chunks:
         log.warning("No extractable text in %s — skipping", path)
@@ -145,11 +123,6 @@ def ingest_file(
     store = get_vector_store()
     store.delete_document(document_id)  # re-ingestion safety
     store.upsert_chunks(chunks)
-
-    resolved_type = doc_type or predict_doc_type(
-        "\n".join(c.text for c in chunks[:3])[:4000]
-    )
-    _attach_doc_type(document_id=document_id, doc_type=resolved_type, store=store)
 
     log.info(
         "Ingested %d chunks from %s (deal_room_id=%s, doc_type=%s)",
@@ -217,6 +190,17 @@ class _NullCtx:
 
 
 def main() -> None:
+    # Local import keeps `from ingestion.pipeline import ingest_file` cheap
+    # and unguarded; the kill-switch fires only when the CLI entry runs.
+    from api.config import settings
+
+    if not settings.ENABLE_EXTERNAL_INGESTION:
+        raise SystemExit(
+            "Ingestion is disabled. Local development is offline/free by "
+            "default. Set ENABLE_EXTERNAL_INGESTION=true (and provide "
+            "OPENAI_API_KEY + ENABLE_LLM_CALLS=true) to opt in."
+        )
+
     parser = argparse.ArgumentParser(description="Deal Room AI offline ingestion")
     parser.add_argument("--source", required=True, help="File or directory to ingest")
     parser.add_argument("--deal-room-id", type=int, required=True)

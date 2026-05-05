@@ -1,19 +1,22 @@
-import os
-
-from dotenv import load_dotenv
 from openai import OpenAI
 
+from api.config import settings
+from api.errors import OpenAINotConfiguredError
 from api.schemas import PredictionRequest
-
-load_dotenv()
 
 
 class OpenAIService:
     def __init__(self) -> None:
-        self.api_key = os.getenv("OPENAI_API_KEY", "")
-        self.model = os.getenv("OPENAI_MODEL", "gpt-5-mini")
-        self.max_output_tokens = int(os.getenv("OPENAI_MAX_OUTPUT_TOKENS", "400"))
-        self.client = OpenAI(api_key=self.api_key) if self.api_key else None
+        self.api_key = settings.OPENAI_API_KEY
+        self.model = settings.OPENAI_MODEL
+        self.max_output_tokens = settings.OPENAI_MAX_OUTPUT_TOKENS
+        # Two independent gates: the kill switch AND the credential. Both must
+        # be present for any OpenAI client to be constructed at startup.
+        self.client = (
+            OpenAI(api_key=self.api_key)
+            if (self.api_key and settings.ENABLE_LLM_CALLS)
+            else None
+        )
 
     def is_ready(self) -> bool:
         return self.client is not None
@@ -36,7 +39,7 @@ class OpenAIService:
 
     def run_prediction(self, request: PredictionRequest) -> str:
         if not self.client:
-            raise RuntimeError("OPENAI_API_KEY is not set")
+            raise OpenAINotConfiguredError()
 
         instructions = (
             "You are a due diligence analyst for a private equity deal team. "
@@ -75,7 +78,7 @@ class OpenAIService:
         method deliberately does not massage the prompt further.
         """
         if not self.client:
-            raise RuntimeError("OPENAI_API_KEY is not set")
+            raise OpenAINotConfiguredError()
 
         instr = instructions or (
             "You are a due diligence analyst answering questions about "

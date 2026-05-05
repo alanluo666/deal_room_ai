@@ -46,8 +46,9 @@ curl -s http://localhost:8000/health | python3 -m json.tool
 ```
 
 You should see `"status": "ok"`, `"db_ok": true`, `"storage_ok": true`,
-and `"chroma_ok": true`. `"openai_configured"` will be `false` if you
-left the key blank, which is expected.
+and `"chroma_ok": true`. `/health` is intentionally a public, unauthenticated
+readiness snapshot and does not reveal whether `OPENAI_API_KEY` is set, the
+configured model, or the MLflow tracking endpoint.
 
 ## 3. Start the frontend
 

@@ -7,15 +7,20 @@ as needed.
 """
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import get_db
 from api.deps import get_current_user, rag_service_dep
+from api.errors import OpenAINotConfiguredError
 from api.models import User
 from api.rag import RagService
 from api.routers._helpers import filenames_by_document_id, load_owned_deal_room
 from api.schemas import AnalyzeRequest, AnalyzeResponse
+
+logger = logging.getLogger("api.analyze")
 
 router = APIRouter(prefix="/deal-rooms/{deal_room_id}", tags=["analyze"])
 
@@ -39,15 +44,16 @@ async def analyze_deal_room(
             top_k=payload.top_k,
             filenames_by_document_id=filenames,
         )
-    except RuntimeError as exc:
-        message = str(exc)
-        if "OPENAI_API_KEY" in message:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="OpenAI is not configured on the server",
-            ) from exc
+    except OpenAINotConfiguredError as exc:
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=message
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenAI is not configured on the server",
+        ) from exc
+    except Exception as exc:
+        logger.exception("analyze failed for deal_room_id=%s", deal_room_id)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Analysis failed. Please try again.",
         ) from exc
 
     return AnalyzeResponse(

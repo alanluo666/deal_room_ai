@@ -81,3 +81,29 @@ async def test_logout_clears_cookie(client):
     client.cookies.clear()
     me = await client.get("/auth/me")
     assert me.status_code == 401
+
+
+def test_set_session_cookie_uses_setting_for_secure_flag(monkeypatch):
+    """The Secure flag on the session cookie must follow JWT_COOKIE_SECURE.
+
+    Default (False) keeps local HTTP development working. Flipping the
+    setting to True (production HTTPS) must add the ``Secure`` attribute
+    to the Set-Cookie header.
+    """
+    from fastapi import Response
+
+    from api.auth import set_session_cookie
+    from api.config import settings
+
+    response = Response()
+    set_session_cookie(response, "tok-1")
+    raw = response.headers.get("set-cookie", "")
+    assert "deal_room_ai_session=tok-1" in raw
+    assert "Secure" not in raw
+
+    monkeypatch.setattr(settings, "JWT_COOKIE_SECURE", True)
+    response_secure = Response()
+    set_session_cookie(response_secure, "tok-2")
+    raw_secure = response_secure.headers.get("set-cookie", "")
+    assert "deal_room_ai_session=tok-2" in raw_secure
+    assert "Secure" in raw_secure

@@ -78,13 +78,13 @@ async def test_health_includes_db_ok(client):
     body = response.json()
     assert body["status"] == "ok"
     assert body["db_ok"] is True
-    for required in (
+    # /health is unauthenticated, so it must not reveal credential
+    # presence, the chosen model, or the MLflow tracking endpoint.
+    for forbidden in (
         "openai_configured",
         "openai_model",
         "mlflow_tracking_enabled",
         "mlflow_tracking_uri",
         "mlflow_experiment_name",
     ):
-        assert required in body
-    assert body["mlflow_tracking_enabled"] is False
-    assert body["mlflow_tracking_uri"] == ""
+        assert forbidden not in body

@@ -1,16 +1,21 @@
 from __future__ import annotations
 
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.db import get_db
 from api.deps import get_current_user, rag_service_dep
+from api.errors import OpenAINotConfiguredError
 from api.models import Question, User
 from api.rag import RagService
 from api.routers._helpers import filenames_by_document_id, load_owned_deal_room
 from api.schemas import AskRequest, AskResponse, Citation, QuestionRead
 from api.tracking import elapsed_seconds, timed_call, tracking_manager
+
+logger = logging.getLogger("api.questions")
 
 router = APIRouter(prefix="/deal-rooms/{deal_room_id}", tags=["questions"])
 
@@ -35,23 +40,32 @@ async def ask_question(
             top_k=payload.top_k,
             filenames_by_document_id=filenames,
         )
-    except RuntimeError as exc:
-        message = str(exc)
+    except OpenAINotConfiguredError as exc:
         tracking_manager.log_ask(
             model_name=rag.model,
             top_k=payload.top_k,
             chunks_used=0,
             latency_seconds=elapsed_seconds(started),
             success=False,
-            error_message=message,
+            error_message="openai_not_configured",
         )
-        if "OPENAI_API_KEY" in message:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="OpenAI is not configured on the server",
-            ) from exc
         raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR, detail=message
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="OpenAI is not configured on the server",
+        ) from exc
+    except Exception as exc:
+        logger.exception("ask failed for deal_room_id=%s", deal_room_id)
+        tracking_manager.log_ask(
+            model_name=rag.model,
+            top_k=payload.top_k,
+            chunks_used=0,
+            latency_seconds=elapsed_seconds(started),
+            success=False,
+            error_message=type(exc).__name__,
+        )
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Ask failed. Please try again.",
         ) from exc
 
     citations_json = [c.model_dump() for c in result.citations]

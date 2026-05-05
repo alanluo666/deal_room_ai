@@ -183,3 +183,51 @@ async def test_chat_happy_path_returns_grounded_answer_and_citations(
 
     # Confirm we actually hit the retrieval path (not the stub).
     assert fake_vector_store.last_query is not None
+
+
+@pytest.mark.asyncio
+async def test_chat_generic_500_does_not_leak_internal_exception_text(
+    client, fake_vector_store, fake_embedding_client, monkeypatch
+):
+    """A non-config error from the LLM must produce a sanitised 500.
+
+    Specifically: the response body must NOT contain the raw exception
+    message, which could carry internal state, prompt fragments, or
+    third-party stack details.
+    """
+    from api.deps import rag_service_dep
+    from api.main import app
+    from api.rag import RagService
+    from api.service import openai_service
+    from tests.conftest import StubLLM
+
+    monkeypatch.setattr(openai_service, "client", object())
+
+    leaky_token = "internal_secret_token_should_not_leak_xyz"
+    raising_llm = StubLLM(
+        raises=RuntimeError(f"boom: {leaky_token}"),
+        model="stub-llm",
+    )
+
+    def _factory():
+        return RagService(
+            vector_store=fake_vector_store,
+            embedder=fake_embedding_client,
+            llm=raising_llm,
+        )
+
+    app.dependency_overrides[rag_service_dep] = _factory
+
+    await _register(client, "leak-chat@example.com")
+    room_id = await _create_room(client)
+    up = await _upload_txt(client, room_id)
+    assert up.status_code == 201
+
+    response = await client.post(
+        f"/deal-rooms/{room_id}/chat",
+        json={"messages": [{"role": "user", "content": "trigger boom"}]},
+    )
+    assert response.status_code == 500
+    body_text = response.text
+    assert leaky_token not in body_text
+    assert "RuntimeError" not in body_text

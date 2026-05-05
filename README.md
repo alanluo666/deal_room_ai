@@ -198,18 +198,13 @@ curl -s http://localhost:8000/health | python -m json.tool
 ```json
 {
   "status": "ok",
-  "openai_configured": true,
-  "openai_model": "gpt-5-mini",
-  "mlflow_tracking_enabled": false,
-  "mlflow_tracking_uri": "",
-  "mlflow_experiment_name": "",
   "db_ok": true,
   "storage_ok": true,
   "chroma_ok": true
 }
 ```
 
-The five `openai_*` and `mlflow_*` fields are unchanged from earlier milestones. `db_ok` (from M1) reports a `SELECT 1` against Postgres. `storage_ok` (new in M2) reports whether `STORAGE_DIR` is a writable directory; `chroma_ok` (new in M2) reports the Chroma heartbeat.
+`/health` is unauthenticated and intentionally returns only readiness booleans. `db_ok` reports a `SELECT 1` against Postgres. `storage_ok` reports whether `STORAGE_DIR` is a writable directory. `chroma_ok` reports the Chroma heartbeat. Earlier milestones also exposed `openai_configured`, `openai_model`, and three `mlflow_*` fields here; those were removed so anonymous callers cannot enumerate which model is configured, whether OpenAI credentials are present, or the MLflow tracking endpoint.
 
 #### `GET /livez`
 
@@ -238,7 +233,7 @@ curl -s http://localhost:8000/readyz | python -m json.tool
 }
 ```
 
-Readiness probe. Returns `200` only when Postgres, Chroma, and `STORAGE_DIR` are all healthy; returns `503` with per-dependency booleans otherwise. `/health` (above) keeps its full diagnostic payload; `/readyz` is the minimal answer to "should this instance receive traffic?".
+Readiness probe. Returns `200` only when Postgres, Chroma, and `STORAGE_DIR` are all healthy; returns `503` with per-dependency booleans otherwise. `/readyz` is the canonical answer to "should this instance receive traffic?"; `/health` (above) reports the same readiness booleans but always returns `200` and is meant as a public diagnostic.
 
 Every request also flows through a small middleware that echoes or generates an `X-Request-ID` response header and emits one logfmt line per request on the `api.request` logger (`method`, `path`, `status`, `latency_ms`, `client_ip`, `request_id`). No bodies, query strings, cookies, or auth headers are logged.
 
@@ -258,7 +253,7 @@ MLflow is fully disabled by default. M2 does not log anything for uploads or emb
 
 - No connections are attempted to any tracking server.
 - No runs, params, metrics, or artifacts are logged anywhere (including during document uploads, embedding, or question answering).
-- `/health` reports `"mlflow_tracking_enabled": false`.
+- The unauthenticated `/health` endpoint does not reveal MLflow's status; that detail is no longer exposed publicly.
 
 To opt in later, set `MLFLOW_TRACKING_URI` to your own tracking server URL and optionally set `MLFLOW_EXPERIMENT_NAME`. There is no default remote URI in the code, the Docker Compose file, the backend settings, or this README — configuration is always explicit.
 

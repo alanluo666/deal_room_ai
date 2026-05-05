@@ -1,3 +1,4 @@
+import logging
 import os
 
 from fastapi import Depends, FastAPI, HTTPException
@@ -8,8 +9,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from api.config import settings
 from api.db import get_db
-from api.deps import vector_store_dep
+from api.deps import get_current_user, vector_store_dep
+from api.errors import OpenAINotConfiguredError
 from api.middleware import install_request_logging
+from api.models import User
 from api.routers import analyze as analyze_router
 from api.routers import auth as auth_router
 from api.routers import chat as chat_router
@@ -20,6 +23,8 @@ from api.schemas import PredictionRequest, PredictionResponse
 from api.service import openai_service
 from api.tracking import elapsed_seconds, timed_call, tracking_manager
 from api.vector_store import VectorStore
+
+logger = logging.getLogger("api.predict")
 
 app = FastAPI(title="Deal Room AI API")
 
@@ -126,13 +131,11 @@ async def health(
     except Exception:
         chroma_ok = False
 
+    # Unauthenticated endpoint: do not reveal credential presence, the
+    # configured model name, or the MLflow tracking endpoint. Only return
+    # the readiness booleans, matching the /readyz contract.
     return {
         "status": "ok",
-        "openai_configured": openai_service.is_ready(),
-        "openai_model": openai_service.model,
-        "mlflow_tracking_enabled": tracking_manager.enabled,
-        "mlflow_tracking_uri": tracking_manager.tracking_uri,
-        "mlflow_experiment_name": tracking_manager.experiment_name,
         "db_ok": db_ok,
         "storage_ok": storage_ok,
         "chroma_ok": chroma_ok,
@@ -140,7 +143,10 @@ async def health(
 
 
 @app.post("/predict", response_model=PredictionResponse)
-def predict(request: PredictionRequest):
+def predict(
+    request: PredictionRequest,
+    current_user: User = Depends(get_current_user),
+):
     start_time = timed_call()
 
     try:
@@ -157,13 +163,30 @@ def predict(request: PredictionRequest):
             model=openai_service.model,
             mlflow_tracking_enabled=tracking_manager.enabled,
         )
-    except Exception as exc:
+    except OpenAINotConfiguredError as exc:
         tracking_manager.log_prediction(
             task=request.task,
             model_name=openai_service.model,
             latency_seconds=elapsed_seconds(start_time),
             success=False,
             question_present=bool(request.question),
-            error_message=str(exc),
+            error_message="openai_not_configured",
         )
-        raise HTTPException(status_code=500, detail=str(exc))
+        raise HTTPException(
+            status_code=503,
+            detail="OpenAI is not configured on the server",
+        ) from exc
+    except Exception as exc:
+        logger.exception("predict failed")
+        tracking_manager.log_prediction(
+            task=request.task,
+            model_name=openai_service.model,
+            latency_seconds=elapsed_seconds(start_time),
+            success=False,
+            question_present=bool(request.question),
+            error_message=type(exc).__name__,
+        )
+        raise HTTPException(
+            status_code=500,
+            detail="Prediction failed. Please try again.",
+        ) from exc

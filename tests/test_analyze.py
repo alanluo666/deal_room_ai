@@ -155,6 +155,7 @@ async def test_analyze_503_when_openai_not_configured(
     client, fake_vector_store, fake_embedding_client
 ):
     from api.deps import rag_service_dep
+    from api.errors import OpenAINotConfiguredError
     from api.main import app
     from tests.conftest import StubLLM
 
@@ -164,7 +165,7 @@ async def test_analyze_503_when_openai_not_configured(
     assert up.status_code == 201
 
     raising_llm = StubLLM(
-        raises=RuntimeError("OPENAI_API_KEY is not set"),
+        raises=OpenAINotConfiguredError(),
         model="stub-llm",
     )
 

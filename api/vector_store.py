@@ -14,6 +14,7 @@ class Chunk:
     chunk_index: int
     text: str
     embedding: list[float]
+    doc_type: str | None = None
 
 
 @dataclass(frozen=True)
@@ -71,15 +72,17 @@ class ChromaVectorStore(VectorStore):
             return
         ids = [f"doc:{c.document_id}:chunk:{c.chunk_index}" for c in chunks]
         documents = [c.text for c in chunks]
-        metadatas = [
-            {
+        metadatas: list[dict] = []
+        for c in chunks:
+            meta: dict = {
                 "document_id": c.document_id,
                 "deal_room_id": c.deal_room_id,
                 "user_id": c.user_id,
                 "chunk_index": c.chunk_index,
             }
-            for c in chunks
-        ]
+            if c.doc_type is not None:
+                meta["doc_type"] = c.doc_type
+            metadatas.append(meta)
         embeddings = [c.embedding for c in chunks]
         self._collection.upsert(
             ids=ids,

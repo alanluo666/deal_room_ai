@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import io
-import os
 
 from api.config import settings
+from api.errors import OpenAINotConfiguredError
 from api.vector_store import Chunk
 
 
@@ -91,13 +91,17 @@ class EmbeddingClient:
 
     def __init__(self, *, model: str | None = None, api_key: str | None = None) -> None:
         self.model = model or settings.EMBEDDING_MODEL
-        self._api_key = api_key if api_key is not None else os.getenv("OPENAI_API_KEY", "")
+        self._api_key = api_key if api_key is not None else settings.OPENAI_API_KEY
         self._client = None
 
     def _ensure_client(self):
         if self._client is None:
+            if not settings.ENABLE_LLM_CALLS:
+                raise OpenAINotConfiguredError(
+                    "LLM calls are disabled (set ENABLE_LLM_CALLS=true to opt in)"
+                )
             if not self._api_key:
-                raise RuntimeError("OPENAI_API_KEY is not set")
+                raise OpenAINotConfiguredError()
             from openai import OpenAI
 
             self._client = OpenAI(api_key=self._api_key)
@@ -129,6 +133,7 @@ def build_chunks(
     mime_type: str,
     data: bytes,
     embedder: EmbeddingClient,
+    doc_type: str | None = None,
 ) -> list[Chunk]:
     text = extract_text(mime_type, data)
     pieces = chunk_text(text)
@@ -147,6 +152,7 @@ def build_chunks(
             chunk_index=idx,
             text=piece,
             embedding=embeddings[idx],
+            doc_type=doc_type,
         )
         for idx, piece in enumerate(pieces)
     ]
