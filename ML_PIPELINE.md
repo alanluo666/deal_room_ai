@@ -59,11 +59,12 @@ Boston's `ChromaVectorStore.upsert_chunks` writes:
 | `user_id` | int | uploader |
 | `chunk_index` | int | position in document |
 
-**My addition (needs Boston's sign-off):** `doc_type: str` (one of
-`classifier.labels.DOC_TYPES`). Until Boston extends his `Chunk` dataclass
-to carry it, the offline pipeline writes `doc_type` via a follow-up upsert
-in `ingestion/pipeline.py::_attach_doc_type`. After Boston extends the
-schema, that workaround can be deleted.
+**`doc_type: str`** (one of `classifier.labels.DOC_TYPES`) is now a
+first-class field on `Chunk` and is written into Chroma metadata by
+`ChromaVectorStore.upsert_chunks` whenever it is set. The offline
+pipeline classifies each document and passes `doc_type` through
+`build_chunks` directly; the previous `_attach_doc_type` post-upsert
+workaround has been removed.
 
 ## Component details
 
@@ -110,6 +111,21 @@ re-embedding runs, doc_type backfills). Reuses Boston's
 `api.document_processing` + `api.vector_store` so chunking/embedding/storage
 logic lives in exactly one place.
 
+The CLI is gated by `ENABLE_EXTERNAL_INGESTION`. With the default
+`ENABLE_EXTERNAL_INGESTION=false`, running `python -m ingestion.pipeline`
+exits immediately with an offline-by-default `SystemExit` and no files,
+embeddings, or Chroma writes happen. To run a real ingestion you need to
+flip three things in `.env`:
+
+- `ENABLE_EXTERNAL_INGESTION=true` — enables the CLI entry point itself.
+- `ENABLE_LLM_CALLS=true` — required because the pipeline embeds chunks
+  through OpenAI.
+- `OPENAI_API_KEY=...` — the embedding credential.
+
+Library-level imports (`from ingestion.pipeline import ingest_file`) are
+unaffected by the CLI gate, so unit tests and programmatic callers keep
+working without flipping any flag.
+
 ```bash
 python -m ingestion.pipeline \
   --source ./data/raw \
@@ -133,7 +149,7 @@ Required GitHub secrets/vars:
 ## Open alignment items
 
 **With Boston (RAG / API):**
-- Add `doc_type: str` to `Chunk` and thread through `ChromaVectorStore.upsert_chunks` so the offline pipeline can stop using the `_attach_doc_type` workaround.
+- **Done.** `doc_type: str` is now a field on `Chunk` and is written through `ChromaVectorStore.upsert_chunks`; the `_attach_doc_type` workaround has been removed.
 - Embedding model: his `api/config.py` ships `text-embedding-3-small`; the assignment spec calls for `text-embedding-3-large`. Pick one — they're not interchangeable (1536 vs. 3072 native dims) and switching means re-embedding everything.
 - Where the classifier runs in the online flow: invoke `classifier.predict.predict_doc_type` inside `document_processing.build_chunks` so doc_type is set on synchronous uploads too.
 

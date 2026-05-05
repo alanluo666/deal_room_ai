@@ -11,7 +11,7 @@ M1 of the product slice ships multi-user accounts (JWT in an HTTP-only cookie), 
 - Python 3.12+ (only needed if you run the API outside Docker)
 - Node.js 20+ and npm (for the frontend)
 - Docker and Docker Compose (recommended for local development)
-- OpenAI API key (required for `POST /predict`, `POST /ask`, and `POST /analyze`; also used for document embeddings on upload)
+- OpenAI API key (required for `POST /predict`, `POST /ask`, and `POST /analyze`, and also used for document embeddings on upload). The key is only consumed when `ENABLE_LLM_CALLS=true` is also set in `.env` — the master kill-switch defaults to `false` so the API stays offline-only out of the box.
 
 ## Local Development Quickstart
 
@@ -241,21 +241,23 @@ Every request also flows through a small middleware that echoes or generates an 
 
 > This single-shot demo endpoint is kept working for backward compatibility but is deprecated now that M3 ships deal-room-scoped retrieval (`/deal-rooms/{id}/ask`). New work should use the ask endpoint so answers are grounded in uploaded documents and accompanied by citations.
 
+`/predict` now requires authentication. Reuse the session cookie from the auth examples above (`-c cookies.txt` on register/login, `-b cookies.txt` here). It also requires live-OpenAI mode (`ENABLE_LLM_CALLS=true` plus a valid `OPENAI_API_KEY`). Without auth it returns `401 Not authenticated`; with auth but offline defaults it returns `503 OpenAI is not configured on the server`; with auth + live-OpenAI mode it routes to the configured model and returns the prediction. Internal exceptions are sanitised to a fixed `500 Prediction failed. Please try again.` so raw error text is never returned to clients.
+
 ```bash
-curl -s -X POST http://localhost:8000/predict \
+curl -s -b cookies.txt -X POST http://localhost:8000/predict \
   -H "Content-Type: application/json" \
   -d '{"task": "summary", "document_text": "Acme Corp reported $5M revenue in Q1 2026..."}'
 ```
 
 ## MLflow Tracking (opt-in only)
 
-MLflow is fully disabled by default. M2 does not log anything for uploads or embeddings, and M3 does not log anything for `/ask`. Leaving `MLFLOW_TRACKING_URI` blank (as in `.env.example`) means:
+MLflow is fully disabled by default. M2 does not log anything for uploads or embeddings, and M3 does not log anything for `/ask`. The default `.env.example` ships with both `ENABLE_MLFLOW=false` and a blank `MLFLOW_TRACKING_URI`, and **either gate alone is enough to keep MLflow off.** That means:
 
 - No connections are attempted to any tracking server.
 - No runs, params, metrics, or artifacts are logged anywhere (including during document uploads, embedding, or question answering).
 - The unauthenticated `/health` endpoint does not reveal MLflow's status; that detail is no longer exposed publicly.
 
-To opt in later, set `MLFLOW_TRACKING_URI` to your own tracking server URL and optionally set `MLFLOW_EXPERIMENT_NAME`. There is no default remote URI in the code, the Docker Compose file, the backend settings, or this README — configuration is always explicit.
+To opt in later, set **both** `ENABLE_MLFLOW=true` **and** `MLFLOW_TRACKING_URI` to your own tracking server URL (and optionally set `MLFLOW_EXPERIMENT_NAME`). Either flag alone leaves MLflow disabled. There is no default remote URI in the code, the Docker Compose file, the backend settings, or this README — configuration is always explicit.
 
 The API container also sets `ANONYMIZED_TELEMETRY=False` so that the `chromadb` Python client does not attempt to send posthog telemetry events. Server-side telemetry is disabled on the Chroma container itself for the same reason.
 

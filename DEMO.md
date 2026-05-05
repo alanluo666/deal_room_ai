@@ -74,7 +74,14 @@ Open <http://localhost:3000>.
    - `acme_risk_factors.docx`
    - `acme_prospectus.pdf`
 
-   Each upload returns `status: "ready"` with a non-zero chunk count.
+   Each upload returns `status: "ready"` with a non-zero chunk count
+   **once you have completed Section 6 below.** Document uploads embed
+   their chunks through OpenAI, so they only succeed when both
+   `ENABLE_LLM_CALLS=true` and a valid `OPENAI_API_KEY` are set in
+   `.env`. With the default offline settings, no paid OpenAI call is
+   ever made: the file is accepted but the document lands with
+   `status: "failed"` at the embedding step, and `/ask`, `/analyze`,
+   and `/predict` return `503` until the flags are flipped.
 4. **Ask a question**, for example *"What was Acme's Q1 revenue and how
    did it change year over year?"* The answer renders with citations
    pointing back to the source chunks and a small line showing the
@@ -107,15 +114,23 @@ volumes and the bind-mounted `./storage` directory. Add `-v` to
 
 Stub-LLM answers are deterministic strings, enough to exercise the
 ingest/retrieval/citation loop end-to-end without burning credits. To
-swap in the real thing:
+swap in the real thing you need to flip **two** values in `.env`:
 
-1. Put your key into `.env`: `OPENAI_API_KEY=sk-...`
-2. Restart the API: `docker compose restart api`
-3. Ask and analyze calls now route to OpenAI. The code paths are
-   unchanged; only the LLM collaborator switches.
+1. `OPENAI_API_KEY=sk-...` — your OpenAI credential.
+2. `ENABLE_LLM_CALLS=true` — the master kill-switch defaults to `false`
+   so no OpenAI client is ever constructed in offline mode. Setting the
+   key alone is not enough.
+3. Restart the API: `docker compose restart api`.
 
-MLflow tracking is still off in this mode. To opt in separately, see
-the MLflow section of `README.md`.
+After the restart, document uploads, `/ask`, `/analyze`, `/chat`, and
+`/predict` route to OpenAI. The code paths are unchanged; only the LLM
+collaborator and the embedding client switch on. With either of the two
+values missing, the API stays in offline mode and no paid OpenAI call
+is made.
+
+MLflow tracking is still off in this mode. To opt in separately you
+must set **both** `ENABLE_MLFLOW=true` and `MLFLOW_TRACKING_URI`; see
+the MLflow section of `README.md` for details.
 
 ## Troubleshooting
 
